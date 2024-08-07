@@ -1,0 +1,31 @@
+# Add new Nexus 9k switches in format:
+#IP_Address,username,password,protocol,port,verify_ssl,timeout,description
+#
+# IP_Address,username,password are self-explanatory
+# 
+# protocol:http or https
+#
+# port:  Typically 443 for NXAPI on Nexus 9k
+#
+# verify_ssl: True or False
+#
+# http/https timeout in number of seconds
+#
+# description: Any string that helps in identifying the switch
+# This is not carried to the database
+#
+# All values are mandatory except description
+#
+# Add comma between items
+# Do not leave whitespaces between items or empty lines
+# Do not leave an empty line
+# Lines starting with # are ignored
+# Text between [] is location. At least one location is mandatory.
+[Location]
+192.168.2.3,user,password,https,443,False,10,add_switchname_her
+#[UK]
+#192.168.1.1,admin,passwd
+#[Italy]
+#192.168.1.1,admin,passwd
+#[China]
+#192.168.1.1,admin,passwd

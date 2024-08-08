@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "0.30"
-__updated__ = "7-Aug-2024-6-PM-PDT"
+__version__ = "0.31"
+__updated__ = "7-Aug-2024-10-PM-PDT"
 
 import sys
 import os
@@ -128,6 +128,16 @@ def parse_cmdline_arguments():
             action='store_true', default=False, help='Use prebuilt \
             interface string with show interface counter detail \
             command')
+    parser.add_argument('-burst', dest='burst', \
+            action='store_true', default=False, help='Pull NX-OS command \
+            show queuing burst-detect using NX-API')
+    parser.add_argument('-pfcwd', dest='pfcwd', \
+            action='store_true', default=False, help='Pull NX-OS command \
+            show queuing pfc-queue detail using NX-API')
+    parser.add_argument('-bufferstats', dest='bufferstats', \
+            action='store_true', default=False, help='Pull NX-OS command \
+            show hardware internal buffer info pkt-stats using NX-API and \
+            clear counters buffers using SSH/Expect')
     parser.add_argument('-V', dest='verify_only', \
             action='store_true', default=False, help='verify \
             connection and stats pull but do not print the stats')
@@ -146,6 +156,9 @@ def parse_cmdline_arguments():
     user_args['intf_str'] = args.intf_str
     user_args['intf_cntr_str'] = args.intf_cntr_str
     user_args['cli_json'] = False
+    user_args['burst'] = args.burst
+    user_args['pfcwd'] = args.pfcwd
+    user_args['bufferstats'] = args.bufferstats
     user_args['verify_only'] = args.verify_only
     user_args['verbose'] = args.verbose
     user_args['more_verbose'] = args.more_verbose
@@ -205,6 +218,7 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
     """
     final_print_string = ''
     switch_prefix = 'Switches'
+    buffer_prefix = 'SwitchBufferStats'
     intf_prefix = 'SwitchIntfStats'
     q_prefix = 'SwitchQStats'
     wd_prefix = 'SwitchPFCWD'
@@ -264,6 +278,41 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
     switch_fields = switch_fields + '\n'
     final_print_string = final_print_string + switch_prefix + \
                          switch_tags + switch_fields
+
+    if 'buffer_usage' in per_switch_stats_dict:
+        for instance,instance_dict in per_switch_stats_dict['buffer_usage'].items():
+            buffer_tags = ''
+            buffer_fields = ''
+            buffer_tags = ',instance=' + str(instance)
+            if 'location' in per_switch_stats_dict:
+                buffer_tags = buffer_tags + ',location=' + \
+                              per_switch_stats_dict['location']
+
+            buffer_tags = buffer_tags + ',switch=' + switch_ip
+
+            if 'switchname' in per_switch_stats_dict:
+                buffer_tags = buffer_tags + ',switchname=' + \
+                              per_switch_stats_dict['switchname']
+
+            if 'type' in per_switch_stats_dict:
+                buffer_tags = buffer_tags + ',type=' + \
+                              per_switch_stats_dict['type']
+            if 'peak_cell_drop_pg' in instance_dict:
+                buffer_fields = buffer_fields + ' peak_cell_drop_pg=' + \
+                                str(instance_dict['peak_cell_drop_pg'])
+            if 'peak_cell_no_drop' in instance_dict:
+                buffer_fields = buffer_fields + ',peak_cell_no_drop=' + \
+                                str(instance_dict['peak_cell_no_drop'])
+            if 'cell_count_drop_pg' in instance_dict:
+                buffer_fields = buffer_fields + ',cell_count_drop_pg=' + \
+                                str(instance_dict['cell_count_drop_pg'])
+            if 'cell_count_no_drop_pg' in instance_dict:
+                buffer_fields = buffer_fields + ',cell_count_no_drop_pg=' + \
+                                str(instance_dict['cell_count_no_drop_pg'])
+
+            buffer_fields = buffer_fields + '\n'
+            final_print_string = final_print_string + buffer_prefix + \
+                                 buffer_tags + buffer_fields
 
     intf_str = ''
     q_str = ''
@@ -911,7 +960,6 @@ def parse_pfcqueuedetail(json_data, per_switch_stats_dict, mo):
     This function assumes that per_intf_dict is already built
     """
     intf_dict = per_switch_stats_dict['intf']
-    logger.debug('%s \n%s', mo, json.dumps(json_data, indent=2))
     row_module = parse_nxapi_common(json_data, mo)
     if row_module is None:
         return
@@ -955,7 +1003,6 @@ def parse_burstdetect(json_data, per_switch_stats_dict, mo):
     This function assumes that per_intf_dict is already built
     """
     intf_dict = per_switch_stats_dict['intf']
-    logger.debug(' %s\n%s', mo, json.dumps(json_data, indent=2))
     row_module = parse_nxapi_common(json_data, mo)
     if row_module is None:
         return
@@ -1006,12 +1053,83 @@ def parse_burstdetect(json_data, per_switch_stats_dict, mo):
             b_dict['duration'] = dur_us
         b_list.append(b_dict)
 
+
+'''
+def run_cmd(cmd):
+    cmd_list = cmd.split(' ')
+    ret = None
+    # TODO: This ret needs proper handling
+    try:
+        output = subprocess.run(cmd_list, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        if output.returncode != 0:
+            logger.error(cmd + ' failed:' + \
+                         str(output.stderr.decode('utf-8').strip()))
+        else:
+            ret = str(output.stdout.decode('utf-8').strip())
+    except Exception as e:
+        logger.exception('Exception: %s', e)
+    return ret
+    cmd = 'hl-smi -q'
+    result = run_cmd(cmd)
+    if result is None:
+        logger.error('Error: ' + cmd)
+        return
+'''
+
+def parse_bufferpktstats(json_data, per_switch_stats_dict, mo):
+    """Parser for show hardware internal buffer info pkt-stats in json.
+    This function assumes that per_intf_dict is already built
+    """
+
+    intf_dict = per_switch_stats_dict['intf']
+    row_module = parse_nxapi_common(json_data, mo)
+    if row_module is None:
+        return
+
+    if "TABLE_instance" not in row_module:
+        logger.error('TABLE_instance not in %s\n%s', mo, json_data)
+        return
+    if "ROW_instance" not in row_module['TABLE_instance']:
+        logger.error('ROW_instance not in %s\n%s', mo, json_data)
+        return
+
+    #if 'module_number' in row_module:
+    #    module = row_module['module_number']
+
+    if 'buffer_usage' not in per_switch_stats_dict:
+        per_switch_stats_dict['buffer_usage'] = {}
+    buffer_dict = per_switch_stats_dict['buffer_usage']
+
+    for row_dict in row_module['TABLE_instance']['ROW_instance']:
+        if 'instance' not in row_dict:
+            logger.error('Instance not found for buffer pkt stats %s\n%s' \
+                         , mo, json_data)
+            continue
+        buffer_dict[row_dict['instance']] = {}
+        if 'max_cell_usage_drop_pg' in row_dict and \
+                'N' not in str(row_dict['max_cell_usage_drop_pg']):
+            buffer_dict[row_dict['instance']]['peak_cell_drop_pg'] = \
+                                            row_dict['max_cell_usage_drop_pg']
+        if 'max_cell_usage_no_drop_pg' in row_dict and \
+                'N' not in str(row_dict['max_cell_usage_no_drop_pg']):
+            buffer_dict[row_dict['instance']]['peak_cell_no_drop'] = \
+                                            row_dict['max_cell_usage_no_drop_pg']
+        if 'switch_cell_count_drop_pg' in row_dict and \
+                'N' not in str(row_dict['switch_cell_count_drop_pg']):
+            buffer_dict[row_dict['instance']]['cell_count_drop_pg'] = \
+                                            row_dict['switch_cell_count_drop_pg']
+        if 'switch_cell_count_no_drop_pg' in row_dict and \
+                'N' not in str(row_dict['switch_cell_count_no_drop_pg']):
+            buffer_dict[row_dict['instance']]['cell_count_no_drop_pg'] = \
+                                            row_dict['switch_cell_count_no_drop_pg']
+
 def parse_nothing(json_data, per_switch_stats_dict, mo):
     return
 
-def parse_nxapi(imdata_list, per_switch_stats_dict, mo):
-    for i in range(len(imdata_list)):
-        n9k_nxapi_list[i](imdata_list[i], per_switch_stats_dict, mo.split(',')[i])
+#def parse_nxapi(imdata_list, per_switch_stats_dict, mo):
+#    for i in range(len(imdata_list)):
+#        n9k_nxapi_list[i](imdata_list[i], per_switch_stats_dict, mo.split(',')[i])
 
 ###############################################################################
 # END: Parser functions
@@ -1389,6 +1507,20 @@ def get_switch_stats():
 
     logger.debug('Connect and pull stats: %s', switch_dict)
 
+    nxapi_cmd = False
+    if user_args['burst']:
+        n9k_mo_dict["show queuing burst-detect detail"] = parse_burstdetect
+        nxapi_cmd = True
+    if user_args['pfcwd']:
+        n9k_mo_dict["show queuing pfc-queue detail"] = parse_pfcqueuedetail
+        nxapi_cmd = True
+    if user_args['bufferstats']:
+        n9k_mo_dict['show hardware internal buffer info pkt-stats'] = \
+                    parse_bufferpktstats
+        nxapi_cmd = True
+    if nxapi_cmd:
+        n9k_mo_dict['show clock'] = parse_nothing
+
     for switch_ip in switch_dict:
         try:
             connect_and_pull_stats(switch_ip)
@@ -1418,6 +1550,7 @@ n9k_mo_dict = {
     "/api/node/class/ipqosQueuingStats.json": parse_ipqosQueuingStats,
     "/api/node/class/lldpAdjEp.json": parse_lldpAdjEp,
     "/api/aaaLogout.json": aaa_logout,
+#    "show hardware internal buffer info pkt-stats, show clock": parse_nxapi,
 #    "show queuing pfc-queue detail, show clock": parse_nxapi,
 #    "show queuing pfc-queue detail, show queuing burst-detect detail": parse_nxapi,
 }
@@ -1425,7 +1558,8 @@ n9k_mo_dict = {
 # This list must follow the sequence of nxapi commands, parsed by parse_nxapi
 # in n9k_mo_dict, e.g. parse_pfcqueuedetail for show queuing pfc-queue detail
 # parse_burstdetect for show queuing burst-detect detail
-n9k_nxapi_list = [parse_pfcqueuedetail, parse_nothing]
+#n9k_nxapi_list = [parse_bufferpktstats, parse_nothing]
+#n9k_nxapi_list = [parse_pfcqueuedetail, parse_bufferpktstats, parse_nothing]
 #n9k_nxapi_list = [parse_pfcqueuedetail, parse_burstdetect]
 
 def main(argv):
@@ -1470,9 +1604,9 @@ def main(argv):
     idx = 0
     for switch_ip, rsp_list in response_time_dict.items():
         time_output = time_output + '\n' \
-            '    +----------------------------------------------------+\n' \
-            '    |     Response time from - {:<15}           |\n' \
-            '    |----------------------------------------------------|'. \
+            '    +--------------------------------------------------------------+\n' \
+            '    |     Response time from - {:<15}                     |\n' \
+            '    |--------------------------------------------------------------|'. \
             format(switch_ip)
         while idx < len(rsp_list):
             if rsp_list[idx]['nxapi_rsp'] > rsp_list[idx]['nxapi_start']:
@@ -1498,13 +1632,13 @@ def main(argv):
 
             cmd_str = (list(n9k_mo_dict)[idx]).split('/')[-1].split('.')[0]
 
-            ml_cmd_str = ' : {0: <34}|'.format(' ')
+            ml_cmd_str = ' : {0: <44}|'.format(' ')
             if len(cmd_str.split(',')) > 1:
                 for c in cmd_str.split(','):
-                    ml_cmd_str = ml_cmd_str + '\n    |      {0: <46}|'.format(c.strip())
+                    ml_cmd_str = ml_cmd_str + '\n    |      {0: <56}|'.format(c.strip())
                 time_output = time_output + ml_cmd_str
             else:
-                time_output = time_output + ' : {0: <34}|'.format(cmd_str)
+                time_output = time_output + ' : {0: <44}|'.format(cmd_str)
             '''
             time_output = time_output + '\n' + \
                     '    | Command set:{0:<2}  {0: <30}|'.\
@@ -1514,23 +1648,23 @@ def main(argv):
             #time_output = time_output + cmd_str
 
             time_output = time_output + '\n' + \
-            '    |----------------------------------------------------|\n'\
-            '    | NXAPI Response:{:>8} s | Parsing:{:>8} s     |\n'\
-            '    |----------------------------------------------------|'.\
+            '    |--------------------------------------------------------------|\n'\
+            '    | NXAPI Response:{:>8} s | Parsing:{:>8} s               |\n'\
+            '    |--------------------------------------------------------------|'.\
             format(nxapi_rsp_time, parse_time)
 
             idx = idx + 1
 
     time_output = time_output + '\n' \
-                   '    |----------------------------------------------------|\n'\
-                   '    |            Time taken to complete                  |\n'\
-                   '    |----------------------------------------------------|\n'\
-                   '    |                               Input:{:7.3f} s      |\n'\
-                   '    |       Connect, pull and parse stats:{:7.3f} s      |\n'\
-                   '    |                              Output:{:7.3f} s      |\n'\
-                   '    |--------------------------------------------------- |\n'\
-                   '    |                               Total:{:7.3f} s      |\n'\
-                   '    +----------------------------------------------------+'.\
+                   '    |--------------------------------------------------------------|\n'\
+                   '    |            Time taken to complete                            |\n'\
+                   '    |--------------------------------------------------------------|\n'\
+                   '    |                               Input:{:7.3f} s                |\n'\
+                   '    |       Connect, pull and parse stats:{:7.3f} s                |\n'\
+                   '    |                              Output:{:7.3f} s                |\n'\
+                   '    |------------------------------------------------------------- |\n'\
+                   '    |                               Total:{:7.3f} s                |\n'\
+                   '    +--------------------------------------------------------------+'.\
                    format((input_read_time - start_time),
                           (connect_time - input_read_time),
                           (output_time - connect_time),

@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "0.31"
-__updated__ = "7-Aug-2024-10-PM-PDT"
+__version__ = "0.34"
+__updated__ = "8-Aug-2024-5-PM-PDT"
 
 import sys
 import os
@@ -17,6 +17,7 @@ import re
 import requests
 import urllib3
 from datetime import datetime,timedelta
+import subprocess
 
 HOURS_IN_DAY = 24
 MINUTES_IN_HOUR = 60
@@ -41,7 +42,6 @@ stats_dict = {}
 # Used to store objects returned by the stats pull. These must be processed
 # to update stats_dict
 raw_cli_stats = {}
-raw_api_stats = {}
 
 proxies = {
     "http": "",
@@ -78,6 +78,22 @@ response_time_dict = {}
 ###############################################################################
 # BEGIN: Generic functions
 ###############################################################################
+
+def run_cmd(cmd_list):
+    """Generic function to run any command"""
+    ret = None
+    # TODO: This ret needs proper handling
+    try:
+        output = subprocess.run(cmd_list, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE)
+        if output.returncode != 0:
+            logger.error(cmd + ' failed:' + \
+                         str(output.stderr.decode('utf-8').strip()))
+        else:
+            ret = str(output.stdout.decode('utf-8').strip())
+    except Exception as e:
+        logger.exception('Exception: %s', e)
+    return ret
 
 def pre_checks_passed(argv):
     """Python version check"""
@@ -1053,37 +1069,41 @@ def parse_burstdetect(json_data, per_switch_stats_dict, mo):
             b_dict['duration'] = dur_us
         b_list.append(b_dict)
 
-
-'''
-def run_cmd(cmd):
-    cmd_list = cmd.split(' ')
-    ret = None
-    # TODO: This ret needs proper handling
-    try:
-        output = subprocess.run(cmd_list, stdout=subprocess.PIPE,
-                                stderr=subprocess.PIPE)
-        if output.returncode != 0:
-            logger.error(cmd + ' failed:' + \
-                         str(output.stderr.decode('utf-8').strip()))
-        else:
-            ret = str(output.stdout.decode('utf-8').strip())
-    except Exception as e:
-        logger.exception('Exception: %s', e)
-    return ret
-    cmd = 'hl-smi -q'
-    result = run_cmd(cmd)
-    if result is None:
-        logger.error('Error: ' + cmd)
-        return
-'''
-
-def parse_bufferpktstats(json_data, per_switch_stats_dict, mo):
+def parse_bufferpktstats(cmd_result, per_switch_stats_dict, mo):
     """Parser for show hardware internal buffer info pkt-stats in json.
     This function assumes that per_intf_dict is already built
+    This information is unavailable via DME. Using NX-API is fine, but it
+    creates a new vsh on the switch resulting in the following message:
+    %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by admin on <ip>@nginx.18400
+    This message floods the system logs and misleads the user into thinking that
+    something was changed on the switch even though this is just a show command
+    Therefore, use password-less ssh to get the output of a command from the
+    switch, which works as fast as NX-API and the returned data is slightly
+    easier to parse because NX-API headers are not added
+    The user running this file should have added keys to the switch
+    for password-less ssh, must have necessary permissions to run the
+    commands on the local host, write access to the log directors, and
+    must be able to run any daemon, such as telegraf, that invokes this file
     """
 
+    json_data = json.loads(cmd_result)
+
+    if user_args.get('raw_dump'):
+        current_log_level = logger.level
+        logger.setLevel(logging.DEBUG)
+        logger.debug('Printing raw Response\n%s', json.dumps(json_data, indent=2))
+        logger.debug('Printing raw dump - DONE')
+        logger.setLevel(current_log_level)
+
     intf_dict = per_switch_stats_dict['intf']
-    row_module = parse_nxapi_common(json_data, mo)
+    if "TABLE_module" not in json_data:
+        logger.error('TABLE_module not found in %s\n%s', mo, json_data)
+        return None
+    if "ROW_module" not in json_data['TABLE_module']:
+        logger.error('ROW_module not found in %s\n%s', mo, json_data)
+        return None
+    #row_module = parse_nxapi_common(json_data, mo)
+    row_module = json_data['TABLE_module']['ROW_module']
     if row_module is None:
         return
 
@@ -1124,7 +1144,7 @@ def parse_bufferpktstats(json_data, per_switch_stats_dict, mo):
             buffer_dict[row_dict['instance']]['cell_count_no_drop_pg'] = \
                                             row_dict['switch_cell_count_no_drop_pg']
 
-def parse_nothing(json_data, per_switch_stats_dict, mo):
+def parse_nothing(cmd_result, per_switch_stats_dict, mo):
     return
 
 #def parse_nxapi(imdata_list, per_switch_stats_dict, mo):
@@ -1194,7 +1214,6 @@ def get_switches():
                 stats_dict[switch[0]]['modules'] = {}
                 stats_dict[switch[0]]['type'] = 'nexus'
 
-                raw_api_stats[switch[0]] = {}
 
                 response_time_dict[switch[0]] = []
 
@@ -1323,7 +1342,6 @@ def dme_connect(switch_ip, auth_cookie, endpoint, payload, verify_ssl):
     """ Connect to a Cisco N9K switch and get the response
     of DME object end point"""
 
-    global raw_api_stats
     url = "https://" + switch_ip + endpoint
     # endpoint's format: /api/mo/sys/sysmgrShowVersion.json
     mo = endpoint.split('/')[-1].split('.')[0]
@@ -1357,7 +1375,7 @@ def dme_connect(switch_ip, auth_cookie, endpoint, payload, verify_ssl):
         logger.setLevel(current_log_level)
 
     if 'imdata' not in response_json:
-        logger.error('imdata not found in NXAPI response from %s:%s', 
+        logger.error('imdata not found in NXAPI response from %s:%s',
                 switch_ip, json.dumps(response_json, indent=2))
         return None
 
@@ -1367,7 +1385,13 @@ def nxapi_connect(switch_ip, switchuser, switchpassword, cmd, verify_ssl):
     """ Connect to a Cisco N9K switch and get the response of show command
     using NXAPI"""
 
-    global raw_api_stats
+    cmd_list = ['ssh', '-l', switchuser, switch_ip, cmd]
+    result = run_cmd(cmd_list)
+    if result is None:
+        logger.error('Error: ' + cmd)
+        return
+    return result
+    '''
     url = 'http://' + switch_ip + '/ins'
     myheaders={"content-type":"application/json-rpc"}
     cmd_list = cmd.split(',')
@@ -1409,6 +1433,7 @@ def nxapi_connect(switch_ip, switchuser, switchpassword, cmd, verify_ssl):
         logger.setLevel(current_log_level)
 
     return response_json
+    '''
 
 def connect_and_pull_stats(switch_ip):
     """
@@ -1418,7 +1443,6 @@ def connect_and_pull_stats(switch_ip):
     """
 
     global switch_dict
-    global raw_api_stats
     global stats_dict
     global response_time_dict
     global n9k_mo_dict
@@ -1469,7 +1493,7 @@ def connect_and_pull_stats(switch_ip):
             nxapi_ep = True
             continue
 
-        logger.info('Pull stats from %s for %s', switch_ip, mo)
+        logger.info('Run %s on %s', mo, switch_ip)
 
         if nxapi_ep:
             imdata_list = nxapi_connect(switch_ip, switchuser, switchpassword, \
@@ -1515,11 +1539,12 @@ def get_switch_stats():
         n9k_mo_dict["show queuing pfc-queue detail"] = parse_pfcqueuedetail
         nxapi_cmd = True
     if user_args['bufferstats']:
-        n9k_mo_dict['show hardware internal buffer info pkt-stats'] = \
+        n9k_mo_dict['show hardware internal buffer info pkt-stats | json'] = \
                     parse_bufferpktstats
+        n9k_mo_dict['clear counters buffers'] = parse_nothing
         nxapi_cmd = True
-    if nxapi_cmd:
-        n9k_mo_dict['show clock'] = parse_nothing
+#    if nxapi_cmd:
+#        n9k_mo_dict['show clock'] = parse_nothing
 
     for switch_ip in switch_dict:
         try:

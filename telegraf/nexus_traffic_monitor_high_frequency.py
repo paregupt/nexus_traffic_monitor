@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "0.34"
-__updated__ = "8-Aug-2024-5-PM-PDT"
+__version__ = "0.35"
+__updated__ = "11-Oct-2024-1-PM-PDT"
 
 import sys
 import os
@@ -120,7 +120,7 @@ def parse_cmdline_arguments():
     'Grafana. The initial version was coded to insert into InfluxDB.\n' + \
     'Before converting into any specific format (like InfluxDB Line\n' + \
     'Protocol), the data is correlated in a hierarchical dictionary.\n' + \
-    'This dictionary can be parsed to output the data into other formats.\n' + \
+    'This dictionary can be parsed to output the data into other formats.\n' +\
     'Overall, the output can be extended for other databases also.\n\n' + \
     'High level steps:\n' + \
     '  - Read access details of a Cisco N9k switches (IP Address, user\n' + \
@@ -182,7 +182,8 @@ def parse_cmdline_arguments():
     user_args['raw_dump'] = args.raw_dump
 
     global INPUT_FILE_PREFIX
-    INPUT_FILE_PREFIX = ((((user_args['input_file']).split('/'))[-1]).split('.'))[0]
+    INPUT_FILE_PREFIX = \
+            ((((user_args['input_file']).split('/'))[-1]).split('.'))[0]
 
 def setup_logging():
     """Setup logging"""
@@ -201,7 +202,8 @@ def setup_logging():
         logfile_name = logfile_prefix + '_' + INPUT_FILE_PREFIX + '.log'
         rotator = RotatingFileHandler(logfile_name, maxBytes=LOGFILE_SIZE,
                                       backupCount=LOGFILE_NUMBER)
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - ' \
+                                        '%(message)s')
         rotator.setFormatter(formatter)
         logger.addHandler(rotator)
 
@@ -225,12 +227,12 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
     InfluxDB Line Protocol Reference
         * Never double or single quote the timestamp
         * Never single quote field values
-        * Do not double or single quote measurement names, tag keys, tag values,
+        * Do not double or single quote measurement names, tag keys, tag values
           and field keys
-        * Do not double quote field values that are floats, integers, or Booleans
+        * Do not double quote field values that are floats, integers, Booleans
         * Do double quote field values that are strings
         * Performance tips: sort by tag key
-    Example: myMeasurement,tag1=tag1val,tag2=tag2val Field1="testData",Field2=3 ts_ns
+    e.g: Measurement,tag1=tag1val,tag2=tag2val Field1="testData",Field2=3 ts_ns
     """
     final_print_string = ''
     switch_prefix = 'Switches'
@@ -296,7 +298,8 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
                          switch_tags + switch_fields
 
     if 'buffer_usage' in per_switch_stats_dict:
-        for instance,instance_dict in per_switch_stats_dict['buffer_usage'].items():
+        for instance,instance_dict in \
+                per_switch_stats_dict['buffer_usage'].items():
             buffer_tags = ''
             buffer_fields = ''
             buffer_tags = ',instance=' + str(instance)
@@ -353,7 +356,13 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
                     # TODO: Update this as per timezone
                     # CSCwk10807. Timezone adjustment not needed 10.5(1) onwards
                     #utc = datetime.fromisoformat(str(val)) + timedelta(hours=7)
-                    utc = datetime.fromisoformat(str(val))
+                    if sys_ver == '':
+                        utc = datetime.fromisoformat(str(val))
+                    else:
+                        if sys_ver < '10.5(1)':
+                            utc = datetime.fromisoformat(str(val)) + timedelta(hours=7)
+                        else:
+                            utc = datetime.fromisoformat(str(val))
                     # "2024-05-18T18:04:19.900+00:00"
                     # switch returns ms. write with us. Keep ns to 1000
                     ts_ns_i = str(int(datetime.timestamp(utc) * 1000000) * 1000)
@@ -527,7 +536,6 @@ def print_output(switch_ip, per_switch_stats_dict):
         print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict)
         logger.info('Printing output - DONE')
 
-
 ###############################################################################
 # END: Output functions
 ###############################################################################
@@ -550,7 +558,7 @@ def get_float_from_string(s):
 
 def get_speed_num_from_string(speed):
     """
-    Just retain the number in gbps. 32 Gbps => 32, 16 Gbps => 16
+    Just retain the number in gbps. 100 Gbps => 100, 400Gbps => 400
     strip off gbps, etc.
     """
     if speed.isdigit():

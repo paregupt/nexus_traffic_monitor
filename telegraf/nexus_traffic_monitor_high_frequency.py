@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "0.35"
-__updated__ = "11-Oct-2024-1-PM-PDT"
+__version__ = "0.36"
+__updated__ = "11-Oct-2024-4-PM-PDT"
 
 import sys
 import os
@@ -14,10 +14,10 @@ from logging.handlers import RotatingFileHandler
 import json
 import time
 import re
-import requests
-import urllib3
 from datetime import datetime,timedelta
 import subprocess
+import requests
+import urllib3
 
 HOURS_IN_DAY = 24
 MINUTES_IN_HOUR = 60
@@ -87,7 +87,7 @@ def run_cmd(cmd_list):
         output = subprocess.run(cmd_list, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE)
         if output.returncode != 0:
-            logger.error(cmd + ' failed:' + \
+            logger.error('%s failed:%s', cmd_list, \
                          str(output.stderr.decode('utf-8').strip()))
         else:
             ret = str(output.stdout.decode('utf-8').strip())
@@ -567,6 +567,7 @@ def get_speed_num_from_string(speed):
     return (int)(get_float_from_string(speed))
 
 def parse_intf(imdata_list, per_switch_stats_dict, mo):
+    """Extract mostly the metadata for the interfaces"""
     intf_dict = per_switch_stats_dict['intf']
     for imdata in imdata_list:
         for mo_name, attr in imdata.items():
@@ -584,6 +585,9 @@ def parse_intf(imdata_list, per_switch_stats_dict, mo):
                     continue
                 interface = attributes.get('id')
                 '''
+                # This isn't needed because Grafana latest releases supports
+                # sorting varibale values using Natural (asc) order. But keep
+                # code just in case
                 # make single digit numbers to two digits for sorting in GUI
                 interface_list = interface.split('/')
                 if len(interface_list) > 1:
@@ -612,6 +616,7 @@ def parse_intf(imdata_list, per_switch_stats_dict, mo):
                 meta_dict['oper_mode'] = attributes.get('mode')
 
 def parse_ethpmPhysIf(imdata_list, per_switch_stats_dict, mo):
+    """Extract mostly the metadata for the interfaces"""
     intf_dict = per_switch_stats_dict['intf']
     for imdata in imdata_list:
         for mo_name, attr in imdata.items():
@@ -625,6 +630,9 @@ def parse_ethpmPhysIf(imdata_list, per_switch_stats_dict, mo):
                     continue
                 interface = dn[dn.find('[') + 1 : dn.find(']')]
                 '''
+                # This isn't needed because Grafana latest releases supports
+                # sorting varibale values using Natural (asc) order. But keep
+                # code just in case
                 # make single digit numbers to two digits for sorting in GUI
                 interface_list = interface.split('/')
                 if len(interface_list) > 1:
@@ -654,6 +662,7 @@ def parse_ethpmPhysIf(imdata_list, per_switch_stats_dict, mo):
                     data_dict['down_reason'] = attributes.get('operStQual')
 
 def parse_rmonEtherStats(imdata_list, per_switch_stats_dict, mo):
+    """Extract stats for the interfaces"""
     intf_dict = per_switch_stats_dict['intf']
     for imdata in imdata_list:
         for mo_name, attr in imdata.items():
@@ -667,6 +676,9 @@ def parse_rmonEtherStats(imdata_list, per_switch_stats_dict, mo):
                     continue
                 interface = dn[dn.find('[') + 1 : dn.find(']')]
                 '''
+                # This isn't needed because Grafana latest releases supports
+                # sorting varibale values using Natural (asc) order. But keep
+                # code just in case
                 # make single digit numbers to two digits for sorting in GUI
                 interface_list = interface.split('/')
                 if len(interface_list) > 1:
@@ -684,7 +696,8 @@ def parse_rmonEtherStats(imdata_list, per_switch_stats_dict, mo):
                     per_intf_dict['data'] = {}
                 data_dict = per_intf_dict['data']
 
-                # TODO: Need handling when an attributed is not returned, which results in None, causing error on influx field type
+                # TODO: Need handling when an attribute is not returned,
+                # which results in None, causing error on influx field type
                 data_dict['rx_crc'] = attributes.get('cRCAlignErrors')
                 data_dict['rx_crc_stomped'] = attributes.get('stompedCRCAlignErrors')
                 data_dict['tx_jumbo'] = attributes.get('txOversizePkts')
@@ -703,6 +716,7 @@ def parse_rmonEtherStats(imdata_list, per_switch_stats_dict, mo):
                 data_dict['txPkts64Octets'] = attributes.get('txPkts64Octets')
 
 def parse_rmonIfHCIn(imdata_list, per_switch_stats_dict, mo):
+    """Extract stats for the interfaces"""
     intf_dict = per_switch_stats_dict['intf']
     for imdata in imdata_list:
         for mo_name, attr in imdata.items():
@@ -716,6 +730,9 @@ def parse_rmonIfHCIn(imdata_list, per_switch_stats_dict, mo):
                     continue
                 interface = dn[dn.find('[') + 1 : dn.find(']')]
                 '''
+                # This isn't needed because Grafana latest releases supports
+                # sorting varibale values using Natural (asc) order. But keep
+                # code just in case
                 # make single digit numbers to two digits for sorting in GUI
                 interface_list = interface.split('/')
                 if len(interface_list) > 1:
@@ -739,8 +756,8 @@ def parse_rmonIfHCIn(imdata_list, per_switch_stats_dict, mo):
                 # modTs seems to be the same for rx and tx. Just use once
                 per_intf_dict['meta']['modTs'] = attributes.get('modTs')
 
-
 def parse_rmonIfHCOut(imdata_list, per_switch_stats_dict, mo):
+    """Extract stats for the interfaces"""
     intf_dict = per_switch_stats_dict['intf']
     for imdata in imdata_list:
         for mo_name, attr in imdata.items():
@@ -754,6 +771,9 @@ def parse_rmonIfHCOut(imdata_list, per_switch_stats_dict, mo):
                     continue
                 interface = dn[dn.find('[') + 1 : dn.find(']')]
                 '''
+                # This isn't needed because Grafana latest releases supports
+                # sorting varibale values using Natural (asc) order. But keep
+                # code just in case
                 # make single digit numbers to two digits for sorting in GUI
                 interface_list = interface.split('/')
                 if len(interface_list) > 1:
@@ -778,6 +798,7 @@ def parse_rmonIfHCOut(imdata_list, per_switch_stats_dict, mo):
                 #per_intf_dict['meta']['modTs'] = attributes.get('modTs')
 
 def parse_ipqosQueuingStats(imdata_list, per_switch_stats_dict, mo):
+    """Extract queue stats for the interfaces"""
     intf_dict = per_switch_stats_dict['intf']
     for imdata in imdata_list:
         for mo_name, attr in imdata.items():
@@ -791,6 +812,9 @@ def parse_ipqosQueuingStats(imdata_list, per_switch_stats_dict, mo):
                     continue
                 interface = dn[dn.find('[') + 1 : dn.find(']')]
                 '''
+                # This isn't needed because Grafana latest releases supports
+                # sorting varibale values using Natural (asc) order. But keep
+                # code just in case
                 # make single digit numbers to two digits for sorting in GUI
                 interface_list = interface.split('/')
                 if len(interface_list) > 1:
@@ -830,6 +854,7 @@ def parse_ipqosQueuingStats(imdata_list, per_switch_stats_dict, mo):
                 per_out_queue_dict['modTs'] = attributes.get('modTs')
 
 def parse_lldpAdjEp(imdata_list, per_switch_stats_dict, mo):
+    """Extract peer details from LLDP"""
     intf_dict = per_switch_stats_dict['intf']
     for imdata in imdata_list:
         for mo_name, attr in imdata.items():
@@ -843,6 +868,9 @@ def parse_lldpAdjEp(imdata_list, per_switch_stats_dict, mo):
                     continue
                 interface = dn[dn.find('[') + 1 : dn.find(']')]
                 '''
+                # This isn't needed because Grafana latest releases supports
+                # sorting varibale values using Natural (asc) order. But keep
+                # code just in case
                 # make single digit numbers to two digits for sorting in GUI
                 interface_list = interface.split('/')
                 if len(interface_list) > 1:
@@ -862,8 +890,8 @@ def parse_lldpAdjEp(imdata_list, per_switch_stats_dict, mo):
 
                 encap = attributes.get('enCap')
                 sysdesc = attributes.get('sysDesc')
-                # When docker is installed, Ubuntu's encap becomes router
-                # insteaf of station. So check for Linux in sysDesc
+                # When docker is installed, Ubuntu's encap becomes router(R)
+                # instead of station(S). So check for Linux in sysDesc
                 if 'tatio' in encap or \
                         re.search('Linux', sysdesc, re.IGNORECASE):
                     meta_dict['peer_type'] = 'host'
@@ -890,6 +918,7 @@ def parse_lldpAdjEp(imdata_list, per_switch_stats_dict, mo):
                     # don't fill peer, peer_name, and peer_intf when peer_type is other
 
 def parse_sysmgrShowVersion(imdata_list, per_switch_stats_dict, mo):
+    """Extract system details"""
     for imdata in imdata_list:
         attr = imdata[mo]
         if 'attributes' not in attr:
@@ -916,6 +945,7 @@ def parse_sysmgrShowVersion(imdata_list, per_switch_stats_dict, mo):
         per_switch_stats_dict['kernel_uptime'] = uptime_secs
 
 def parse_pieCpuUsage(imdata_list, per_switch_stats_dict, mo):
+    """Extract CPU usage"""
     for imdata in imdata_list:
         attr = imdata[mo]
         if 'attributes' not in attr:
@@ -927,6 +957,7 @@ def parse_pieCpuUsage(imdata_list, per_switch_stats_dict, mo):
         per_switch_stats_dict['cpu_kernel'] = attributes.get('kernelPercent')
 
 def parse_nwVdc(imdata_list, per_switch_stats_dict, mo):
+    """Extract switchname"""
     for imdata in imdata_list:
         attr = imdata[mo]
         if 'attributes' not in attr:
@@ -937,6 +968,7 @@ def parse_nwVdc(imdata_list, per_switch_stats_dict, mo):
         per_switch_stats_dict['switchname'] = attributes.get('name')
 
 def parse_eqptCh(imdata_list, per_switch_stats_dict, mo):
+    """Extract switch model"""
     for imdata in imdata_list:
         attr = imdata[mo]
         if 'attributes' not in attr:
@@ -947,6 +979,7 @@ def parse_eqptCh(imdata_list, per_switch_stats_dict, mo):
         per_switch_stats_dict['model'] = attributes.get('model')
 
 def parse_pieMemoryUsage(imdata_list, per_switch_stats_dict, mo):
+    """Extract Memory usage"""
     for imdata in imdata_list:
         attr = imdata[mo]
         if 'attributes' not in attr:
@@ -958,6 +991,7 @@ def parse_pieMemoryUsage(imdata_list, per_switch_stats_dict, mo):
         per_switch_stats_dict['mem_used'] = attributes.get('memUsed')
 
 def parse_nxapi_common(json_data, mo):
+    """Common tasks for all NX-API response handling"""
     if "error" in json_data:
         logger.error('Error in %s\n%s', mo, json_data)
         return None
@@ -980,8 +1014,9 @@ def parse_nxapi_common(json_data, mo):
 
 def parse_pfcqueuedetail(json_data, per_switch_stats_dict, mo):
     """Parser for show queuing pfc-queue details in json. This is a dirty
-    parser, but still used today because DME has a bug of reporting 0 stats.
+    parser, but still used today because DME has a bug of reporting 0.
     This function assumes that per_intf_dict is already built
+    PFC watchdog stats
     """
     intf_dict = per_switch_stats_dict['intf']
     row_module = parse_nxapi_common(json_data, mo)
@@ -1025,6 +1060,7 @@ def parse_pfcqueuedetail(json_data, per_switch_stats_dict, mo):
 def parse_burstdetect(json_data, per_switch_stats_dict, mo):
     """Parser for show queuing burst-detect detail in json.
     This function assumes that per_intf_dict is already built
+    Burst detect stats
     """
     intf_dict = per_switch_stats_dict['intf']
     row_module = parse_nxapi_common(json_data, mo)
@@ -1042,13 +1078,12 @@ def parse_burstdetect(json_data, per_switch_stats_dict, mo):
         if 'if-str' not in row_dict:
             logger.error('if-str not in %s', row_dict)
             continue
-        else:
-            intf = row_dict['if-str'].lower()
-            per_intf_dict = intf_dict[intf]
-            if 'burst' not in per_intf_dict:
-                per_intf_dict['burst'] = []
-            b_list = per_intf_dict['burst']
-            b_dict = {}
+        intf = row_dict['if-str'].lower()
+        per_intf_dict = intf_dict[intf]
+        if 'burst' not in per_intf_dict:
+            per_intf_dict['burst'] = []
+        b_list = per_intf_dict['burst']
+        b_dict = {}
         if 'queue' in row_dict:
             b_dict['q'] = row_dict['queue']
         if 'threshold' in row_dict:
@@ -1088,7 +1123,7 @@ def parse_bufferpktstats(cmd_result, per_switch_stats_dict, mo):
     Therefore, use password-less ssh to get the output of a command from the
     switch, which works as fast as NX-API and the returned data is slightly
     easier to parse because NX-API headers are not added
-    The user running this file should have added keys to the switch
+    The user running this file must add keys to the switch
     for password-less ssh, must have necessary permissions to run the
     commands on the local host, write access to the log directors, and
     must be able to run any daemon, such as telegraf, that invokes this file
@@ -1106,10 +1141,10 @@ def parse_bufferpktstats(cmd_result, per_switch_stats_dict, mo):
     intf_dict = per_switch_stats_dict['intf']
     if "TABLE_module" not in json_data:
         logger.error('TABLE_module not found in %s\n%s', mo, json_data)
-        return None
+        return
     if "ROW_module" not in json_data['TABLE_module']:
         logger.error('ROW_module not found in %s\n%s', mo, json_data)
-        return None
+        return
     #row_module = parse_nxapi_common(json_data, mo)
     row_module = json_data['TABLE_module']['ROW_module']
     if row_module is None:
@@ -1121,9 +1156,6 @@ def parse_bufferpktstats(cmd_result, per_switch_stats_dict, mo):
     if "ROW_instance" not in row_module['TABLE_instance']:
         logger.error('ROW_instance not in %s\n%s', mo, json_data)
         return
-
-    #if 'module_number' in row_module:
-    #    module = row_module['module_number']
 
     if 'buffer_usage' not in per_switch_stats_dict:
         per_switch_stats_dict['buffer_usage'] = {}
@@ -1153,6 +1185,7 @@ def parse_bufferpktstats(cmd_result, per_switch_stats_dict, mo):
                                             row_dict['switch_cell_count_no_drop_pg']
 
 def parse_nothing(cmd_result, per_switch_stats_dict, mo):
+    """parse nothing"""
     return
 
 #def parse_nxapi(imdata_list, per_switch_stats_dict, mo):
@@ -1169,16 +1202,13 @@ def parse_nothing(cmd_result, per_switch_stats_dict, mo):
 
 def get_switches():
     """
-
     Parse the input-file
-
     The format of the file is expected to carry:
     IP_Address,username,password,protocol,port,verify_ssl,timeout,description
     Only one entry is expected per line and only one entry per file.
     Line with prefix # is ignored
     Location is specified between []
     Initialize stats_dict
-
     """
     global switch_dict
     global stats_dict
@@ -1222,18 +1252,16 @@ def get_switches():
                 stats_dict[switch[0]]['modules'] = {}
                 stats_dict[switch[0]]['type'] = 'nexus'
 
-
                 response_time_dict[switch[0]] = []
 
     if not switch_dict:
         logger.error('Nothing to monitor. Check input file.')
 
-def aaa_login(username, password, switch_ip, verify_ssl):
+def aaa_login(username, password, switch_ip, verify_ssl, timeout):
     """
     Get auth token from N9K
     TODO: Pickle auth key instead of login and logout every time
     """
-    global proxies
 
     payload = {
         'aaaUser' : {
@@ -1256,7 +1284,7 @@ def aaa_login(username, password, switch_ip, verify_ssl):
         verify = True
 
     response = requests.request("POST", url, data=json.dumps(payload),
-                                verify=verify, proxies=proxies)
+                                verify=verify, proxies=proxies, timeout=timeout)
 
     if not response.ok:
         logger.error('NXAPI error from %s:%s:%s', switch_ip, \
@@ -1303,11 +1331,10 @@ def aaa_login(username, password, switch_ip, verify_ssl):
 
     return auth_cookie
 
-def aaa_logout(username, switch_ip, auth_cookie, verify_ssl):
+def aaa_logout(username, switch_ip, auth_cookie, verify_ssl, timeout):
     """
     Logout from N9K
     """
-    global proxies
 
     payload = {
         'aaaUser' : {
@@ -1328,13 +1355,14 @@ def aaa_logout(username, switch_ip, auth_cookie, verify_ssl):
         verify = True
 
     response = requests.request("POST", url, data=json.dumps(payload),
-                                cookies=auth_cookie, verify=verify, proxies=proxies)
+                                cookies=auth_cookie, verify=verify, \
+                                proxies=proxies, timeout=timeout)
 
     if not response.ok:
         logger.error('NXAPI error from %s:%s:%s', switch_ip, \
             response.status_code, \
             requests.status_codes._codes[response.status_code])
-        return None
+        return
 
     logger.info('Successful logout from %s', switch_ip)
 
@@ -1346,7 +1374,7 @@ def aaa_logout(username, switch_ip, auth_cookie, verify_ssl):
         logger.debug('Printing raw dump - DONE')
         logger.setLevel(current_log_level)
 
-def dme_connect(switch_ip, auth_cookie, endpoint, payload, verify_ssl):
+def dme_connect(switch_ip, auth_cookie, endpoint, payload, verify_ssl, timeout):
     """ Connect to a Cisco N9K switch and get the response
     of DME object end point"""
 
@@ -1366,11 +1394,11 @@ def dme_connect(switch_ip, auth_cookie, endpoint, payload, verify_ssl):
 
     response = requests.request("GET", url, data=json.dumps(payload),
                                 cookies=auth_cookie, verify=verify,
-                                proxies=proxies)
+                                proxies=proxies, timeout=timeout)
 
     if not response.ok:
-        logger.error('DME connect error from %s:%s:%s', switch_ip, \
-            response.status_code, requests.status_codes._codes[response.status_code])
+        logger.error('DME connect error from %s:%s', switch_ip, \
+            response.status_code)
         return None
 
     response_json = response.json()
@@ -1389,17 +1417,22 @@ def dme_connect(switch_ip, auth_cookie, endpoint, payload, verify_ssl):
 
     return response_json['imdata']
 
-def nxapi_connect(switch_ip, switchuser, switchpassword, cmd, verify_ssl):
+def nxapi_connect(switch_ip, switchuser, switchpassword, cmd, verify_ssl, \
+                  timeout):
     """ Connect to a Cisco N9K switch and get the response of show command
     using NXAPI"""
 
     cmd_list = ['ssh', '-l', switchuser, switch_ip, cmd]
     result = run_cmd(cmd_list)
     if result is None:
-        logger.error('Error: ' + cmd)
-        return
+        logger.error('Error: %s', cmd)
+        return None
     return result
+
     '''
+    This code using HTTP/NX-API to run show command on the switch. But not
+    using it because it generates a message on the switch. Instead, use
+    password-less SSH
     url = 'http://' + switch_ip + '/ins'
     myheaders={"content-type":"application/json-rpc"}
     cmd_list = cmd.split(',')
@@ -1423,12 +1456,13 @@ def nxapi_connect(switch_ip, switchuser, switchpassword, cmd, verify_ssl):
         logger.debug('verify_ssl is set to True.')
         verify = True
 
-    response = requests.post(url,data=json.dumps(payload_list), headers=myheaders, \
-                             auth=(switchuser,switchpassword), proxies=proxies)
+    response = requests.post(url,data=json.dumps(payload_list), \
+                    headers=myheaders, auth=(switchuser,switchpassword), \
+                    proxies=proxies, timeout=timeout)
 
     if not response.ok:
-        logger.error('NXAPI error from %s:%s:%s', switch_ip, \
-            response.status_code, requests.status_codes._codes[response.status_code])
+        logger.error('NXAPI error from %s:%s', switch_ip, \
+            response.status_code)
         return None
 
     response_json = response.json()
@@ -1447,7 +1481,6 @@ def connect_and_pull_stats(switch_ip):
     """
     Wrapper to connect to switches and pull stats
     This function is called once per switch
-
     """
 
     global switch_dict
@@ -1471,23 +1504,22 @@ def connect_and_pull_stats(switch_ip):
         if 'aaaLogin' in endpoint:
             logger.info('Sending login request to %s', switch_ip)
             auth_cookie = aaa_login(switchuser, switchpassword,
-                                    switch_ip, verify_ssl)
+                                    switch_ip, verify_ssl, timeout)
             if auth_cookie is None:
                 logger.error('Unsuccessful auth from %s', switch_ip)
-                return None
-            else:
-                logger.info('Successful auth from %s', switch_ip)
-                nxapi_rsp = time.time()
-                nxapi_parse = time.time()
-                response_time = dict(nxapi_start = nxapi_start,
-                                 nxapi_rsp = nxapi_rsp,
-                                 nxapi_parse = nxapi_parse)
-                response_time_dict[switch_ip].insert(idx, response_time)
-                idx = idx + 1
-                continue
-        elif 'aaaLogout' in endpoint:
+                return
+            logger.info('Successful auth from %s', switch_ip)
+            nxapi_rsp = time.time()
+            nxapi_parse = time.time()
+            response_time = dict(nxapi_start = nxapi_start,
+                             nxapi_rsp = nxapi_rsp,
+                             nxapi_parse = nxapi_parse)
+            response_time_dict[switch_ip].insert(idx, response_time)
+            idx = idx + 1
+            continue
+        if 'aaaLogout' in endpoint:
             logger.info('Sending logout request to %s', switch_ip)
-            aaa_logout(switchuser, switch_ip, auth_cookie, verify_ssl)
+            aaa_logout(switchuser, switch_ip, auth_cookie, verify_ssl, timeout)
             nxapi_rsp = time.time()
             nxapi_parse = time.time()
             response_time = dict(nxapi_start = nxapi_start,
@@ -1496,8 +1528,8 @@ def connect_and_pull_stats(switch_ip):
             response_time_dict[switch_ip].insert(idx, response_time)
             idx = idx + 1
             # In n9k_mo_dict, all DME MOs are listed first and aaaLogout is the
-            # last. After this, start NXAPI calls of show commands
-            # order of DME and NXAPI calls must not be changed or mixed
+            # last. After this, start SSH/NXAPI calls of show commands
+            # order of DME and SSH/NXAPI calls must not be changed or mixed
             nxapi_ep = True
             continue
 
@@ -1505,10 +1537,10 @@ def connect_and_pull_stats(switch_ip):
 
         if nxapi_ep:
             imdata_list = nxapi_connect(switch_ip, switchuser, switchpassword, \
-                                        endpoint, verify_ssl)
+                                        endpoint, verify_ssl, timeout)
         else:
             imdata_list = dme_connect(switch_ip, auth_cookie, endpoint, \
-                                      payload, verify_ssl)
+                                      payload, verify_ssl, timeout)
 
         nxapi_rsp = time.time()
 
@@ -1560,13 +1592,12 @@ def get_switch_stats():
         except Exception as excp:
             logger.exception('Exception: %s', excp)
 
-
 ###############################################################################
 # END: Connection and Collector functions
 ###############################################################################
 
 # Dictionary of N9K managed objects (MO) and their parsing functions
-# First list DME objects in which aaaLogin must be the first and 
+# First list DME objects in which aaaLogin must be the first and
 # aaaLogout must be the last. Then list NXAPI commands
 n9k_mo_dict = {
     "/api/aaaLogin.json": aaa_login,
@@ -1583,17 +1614,7 @@ n9k_mo_dict = {
     "/api/node/class/ipqosQueuingStats.json": parse_ipqosQueuingStats,
     "/api/node/class/lldpAdjEp.json": parse_lldpAdjEp,
     "/api/aaaLogout.json": aaa_logout,
-#    "show hardware internal buffer info pkt-stats, show clock": parse_nxapi,
-#    "show queuing pfc-queue detail, show clock": parse_nxapi,
-#    "show queuing pfc-queue detail, show queuing burst-detect detail": parse_nxapi,
 }
-
-# This list must follow the sequence of nxapi commands, parsed by parse_nxapi
-# in n9k_mo_dict, e.g. parse_pfcqueuedetail for show queuing pfc-queue detail
-# parse_burstdetect for show queuing burst-detect detail
-#n9k_nxapi_list = [parse_bufferpktstats, parse_nothing]
-#n9k_nxapi_list = [parse_pfcqueuedetail, parse_bufferpktstats, parse_nothing]
-#n9k_nxapi_list = [parse_pfcqueuedetail, parse_burstdetect]
 
 def main(argv):
     """The beginning of the beginning"""

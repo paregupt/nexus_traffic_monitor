@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "0.36"
-__updated__ = "11-Oct-2024-4-PM-PDT"
+__version__ = "0.37"
+__updated__ = "12-Oct-2024-10-PM-PDT"
 
 import sys
 import os
@@ -1287,9 +1287,8 @@ def aaa_login(username, password, switch_ip, verify_ssl, timeout):
                                 verify=verify, proxies=proxies, timeout=timeout)
 
     if not response.ok:
-        logger.error('NXAPI error from %s:%s:%s', switch_ip, \
-            response.status_code, \
-            requests.status_codes._codes[response.status_code])
+        logger.error('NXAPI error from %s:%s', switch_ip, \
+            response.status_code)
         return None
 
     response_json = response.json()
@@ -1359,9 +1358,8 @@ def aaa_logout(username, switch_ip, auth_cookie, verify_ssl, timeout):
                                 proxies=proxies, timeout=timeout)
 
     if not response.ok:
-        logger.error('NXAPI error from %s:%s:%s', switch_ip, \
-            response.status_code, \
-            requests.status_codes._codes[response.status_code])
+        logger.error('NXAPI error from %s:%s', switch_ip, \
+            response.status_code)
         return
 
     logger.info('Successful logout from %s', switch_ip)
@@ -1560,7 +1558,6 @@ def connect_and_pull_stats(switch_ip):
 def get_switch_stats():
     """
     Connect to switches and pull stats
-
     """
 
     global switch_dict
@@ -1568,8 +1565,6 @@ def get_switch_stats():
     if len(switch_dict) == 0:
         logger.error('Nothing to connect')
         return
-
-    logger.debug('Connect and pull stats: %s', switch_dict)
 
     nxapi_cmd = False
     if user_args['burst']:
@@ -1658,9 +1653,9 @@ def main(argv):
     idx = 0
     for switch_ip, rsp_list in response_time_dict.items():
         time_output = time_output + '\n' \
-            '    +--------------------------------------------------------------+\n' \
-            '    |     Response time from - {:<15}                     |\n' \
-            '    |--------------------------------------------------------------|'. \
+            '    +------------------------------------------------------------------------+\n' \
+            '    | Response time from - {:<15}                                   |\n' \
+            '    |------------------------------------------------------------------------|'. \
             format(switch_ip)
         while idx < len(rsp_list):
             if rsp_list[idx]['nxapi_rsp'] > rsp_list[idx]['nxapi_start']:
@@ -1686,13 +1681,13 @@ def main(argv):
 
             cmd_str = (list(n9k_mo_dict)[idx]).split('/')[-1].split('.')[0]
 
-            ml_cmd_str = ' : {0: <44}|'.format(' ')
+            ml_cmd_str = ' : {0: <54}|'.format(' ')
             if len(cmd_str.split(',')) > 1:
                 for c in cmd_str.split(','):
-                    ml_cmd_str = ml_cmd_str + '\n    |      {0: <56}|'.format(c.strip())
+                    ml_cmd_str = ml_cmd_str + '\n    |      {0: <66}|'.format(c.strip())
                 time_output = time_output + ml_cmd_str
             else:
-                time_output = time_output + ' : {0: <44}|'.format(cmd_str)
+                time_output = time_output + ' : {0: <54}|'.format(cmd_str)
             '''
             time_output = time_output + '\n' + \
                     '    | Command set:{0:<2}  {0: <30}|'.\
@@ -1702,23 +1697,23 @@ def main(argv):
             #time_output = time_output + cmd_str
 
             time_output = time_output + '\n' + \
-            '    |--------------------------------------------------------------|\n'\
-            '    | NXAPI Response:{:>8} s | Parsing:{:>8} s               |\n'\
-            '    |--------------------------------------------------------------|'.\
+            '    |------------------------------------------------------------------------|\n'\
+            '    | NXAPI Response:{:>8} s | Parsing:{:>8} s                         |\n'\
+            '    |------------------------------------------------------------------------|'.\
             format(nxapi_rsp_time, parse_time)
 
             idx = idx + 1
 
     time_output = time_output + '\n' \
-                   '    |--------------------------------------------------------------|\n'\
-                   '    |            Time taken to complete                            |\n'\
-                   '    |--------------------------------------------------------------|\n'\
-                   '    |                               Input:{:7.3f} s                |\n'\
-                   '    |       Connect, pull and parse stats:{:7.3f} s                |\n'\
-                   '    |                              Output:{:7.3f} s                |\n'\
-                   '    |------------------------------------------------------------- |\n'\
-                   '    |                               Total:{:7.3f} s                |\n'\
-                   '    +--------------------------------------------------------------+'.\
+                   '    |------------------------------------------------------------------------|\n'\
+                   '    | Time taken to complete                                                 |\n'\
+                   '    |------------------------------------------------------------------------|\n'\
+                   '    |                               Input:{:7.3f} s               .          |\n'\
+                   '    |       Connect, pull and parse stats:{:7.3f} s                          |\n'\
+                   '    |                              Output:{:7.3f} s                          |\n'\
+                   '    |----------------------------------------------------------------------- |\n'\
+                   '    |                               Total:{:7.3f} s                          |\n'\
+                   '    +------------------------------------------------------------------------+'.\
                    format((input_read_time - start_time),
                           (connect_time - input_read_time),
                           (output_time - connect_time),

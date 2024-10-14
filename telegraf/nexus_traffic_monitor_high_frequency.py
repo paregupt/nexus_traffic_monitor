@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "0.37"
-__updated__ = "12-Oct-2024-10-PM-PDT"
+__version__ = "0.38"
+__updated__ = "13-Oct-2024-10-PM-PDT"
 
 import sys
 import os
@@ -137,23 +137,18 @@ def parse_cmdline_arguments():
             the switch information in the format: IP,user,password,...')
     parser.add_argument('output_format', action='store', help='specify the \
             output format', choices=['dict', 'influxdb-lp'])
-    parser.add_argument('-intfstr', dest='intf_str', \
-            action='store_true', default=False, help='Prebuild interface \
-            string to use with show interface command')
-    parser.add_argument('-intfcntrstr', dest='intf_cntr_str', \
-            action='store_true', default=False, help='Use prebuilt \
-            interface string with show interface counter detail \
-            command')
     parser.add_argument('-burst', dest='burst', \
             action='store_true', default=False, help='Pull NX-OS command \
-            show queuing burst-detect using NX-API')
+            show queuing burst-detect')
     parser.add_argument('-pfcwd', dest='pfcwd', \
             action='store_true', default=False, help='Pull NX-OS command \
-            show queuing pfc-queue detail using NX-API')
+            show queuing pfc-queue detail')
     parser.add_argument('-bufferstats', dest='bufferstats', \
             action='store_true', default=False, help='Pull NX-OS command \
-            show hardware internal buffer info pkt-stats using NX-API and \
-            clear counters buffers using SSH/Expect')
+            show hardware internal buffer info pkt-stats and \
+            clear counters buffers using SSH/Expect. Caution: This option \
+            clears the buffer counters just after reading them so that peak \
+            values can be captured the next time')
     parser.add_argument('-V', dest='verify_only', \
             action='store_true', default=False, help='verify \
             connection and stats pull but do not print the stats')
@@ -169,8 +164,6 @@ def parse_cmdline_arguments():
     args = parser.parse_args()
     user_args['input_file'] = args.input_file
     user_args['output_format'] = args.output_format
-    user_args['intf_str'] = args.intf_str
-    user_args['intf_cntr_str'] = args.intf_cntr_str
     user_args['cli_json'] = False
     user_args['burst'] = args.burst
     user_args['pfcwd'] = args.pfcwd
@@ -457,25 +450,24 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
         if 'pfcwd' in per_intf_dict.keys():
             pfcwd_dict = per_intf_dict['pfcwd']
             if not pfcwd_dict:
-                # Skip interfaces the return no data for PFC WD
+                # Skip interfaces returning no data for PFC WD
                 continue
-            wd_tags = ',intf=' + intf
-            wd_fields = ''
-            if 'location' in per_switch_stats_dict:
-                wd_tags = wd_tags + ',location=' + \
-                                    per_switch_stats_dict['location']
             for k,v in pfcwd_dict.items():
-                if 'qosgrp' in k:
-                    wd_tags = wd_tags + ',' + str(k) + '=' + str(v)
-                else:
+                wd_tags = ',intf=' + intf
+                wd_fields = ''
+                if 'location' in per_switch_stats_dict:
+                    wd_tags = wd_tags + ',location=' + \
+                                    per_switch_stats_dict['location']
+                wd_tags = wd_tags + ',' + 'qosgrp'  + '=' + str(k)
+                for key,val in v.items():
                     sep = ' ' if wd_fields == '' else ','
-                    wd_fields = wd_fields + sep + k + '=' + str(v)
-            wd_tags = wd_tags + ',switch=' + switch_ip
-            if 'switchname' in per_switch_stats_dict:
-                wd_tags = wd_tags + ',switchname=' + \
+                    wd_fields = wd_fields + sep + key + '=' + str(val)
+                wd_tags = wd_tags + ',switch=' + switch_ip
+                if 'switchname' in per_switch_stats_dict:
+                    wd_tags = wd_tags + ',switchname=' + \
                             str(per_switch_stats_dict['switchname'])
-            wd_fields = wd_fields + '\n'
-            wd_str = wd_str + wd_prefix + wd_tags + wd_fields
+                wd_fields = wd_fields + '\n'
+                wd_str = wd_str + wd_prefix + wd_tags + wd_fields
 
         if 'burst' in per_intf_dict.keys():
             burst_list = per_intf_dict['burst']
@@ -1012,14 +1004,29 @@ def parse_nxapi_common(json_data, mo):
         return None
     return json_data['result']['body']['TABLE_module']['ROW_module']
 
-def parse_pfcqueuedetail(json_data, per_switch_stats_dict, mo):
+def parse_pfcqueuedetail(cmd_result, per_switch_stats_dict, mo):
     """Parser for show queuing pfc-queue details in json. This is a dirty
     parser, but still used today because DME has a bug of reporting 0.
     This function assumes that per_intf_dict is already built
     PFC watchdog stats
     """
+    json_data = json.loads(cmd_result)
+
+    if user_args.get('raw_dump'):
+        current_log_level = logger.level
+        logger.setLevel(logging.DEBUG)
+        logger.debug('Printing raw Response\n%s', json.dumps(json_data, indent=2))
+        logger.debug('Printing raw dump - DONE')
+        logger.setLevel(current_log_level)
+
     intf_dict = per_switch_stats_dict['intf']
-    row_module = parse_nxapi_common(json_data, mo)
+    if "TABLE_module" not in json_data:
+        logger.error('TABLE_module not found in %s\n%s', mo, json_data)
+        return
+    if "ROW_module" not in json_data['TABLE_module']:
+        logger.error('ROW_module not found in %s\n%s', mo, json_data)
+        return
+    row_module = json_data['TABLE_module']['ROW_module']
     if row_module is None:
         return
 
@@ -1040,22 +1047,27 @@ def parse_pfcqueuedetail(json_data, per_switch_stats_dict, mo):
                 wd_dict = per_intf_dict['pfcwd']
             if 'TABLE_qosgrp_stats' in k:
                 if 'ROW_qosgrp_stats' in v:
-                    row_qos = v['ROW_qosgrp_stats']
-                    if 'eq-qosgrp' in row_qos:
-                        wd_dict['qosgrp'] = str(row_qos['eq-qosgrp'])
-                    else:
-                        logger.error('Not found eq-qosgrp for %s \n%s', intf, k)
-                    if 'TABLE_qosgrp_stats_entry' in row_qos:
-                        if 'ROW_qosgrp_stats_entry' in \
-                                            row_qos['TABLE_qosgrp_stats_entry']:
-                            r_qos_s = row_qos['TABLE_qosgrp_stats_entry'] \
+                    for rq in v['ROW_qosgrp_stats']:
+                        if 'eq-qosgrp' in rq:
+                            #wd_dict['qosgrp'] = str(rq['eq-qosgrp'])
+                            qosgrp = ''.join(re.findall(r'([0-9]) ', \
+                                    str(rq['eq-qosgrp']), re.IGNORECASE))
+                            wd_dict[qosgrp] = {}
+                        else:
+                            logger.error('Not found eq-qosgrp for %s \n%s', \
+                                            intf, k)
+                        if 'TABLE_qosgrp_stats_entry' in rq:
+                            if 'ROW_qosgrp_stats_entry' in \
+                                            rq['TABLE_qosgrp_stats_entry']:
+                                r_qos_s = rq['TABLE_qosgrp_stats_entry'] \
                                              ['ROW_qosgrp_stats_entry']
-                            for rs_dict in r_qos_s:
-                                for key,val in rs_dict.items():
-                                    if 'q-stat-type' in key:
-                                        continue
-                                    key_short = key.replace('q-', '')
-                                    wd_dict[key_short] = val
+                                for rs_dict in r_qos_s:
+                                    for key,val in rs_dict.items():
+                                        if 'q-stat-type' in key:
+                                            continue
+                                        key_short = key.replace('q-', '')
+                                        e_wd_dict = wd_dict[qosgrp]
+                                        e_wd_dict[key_short] = val
 
 def parse_burstdetect(json_data, per_switch_stats_dict, mo):
     """Parser for show queuing burst-detect detail in json.
@@ -1115,18 +1127,7 @@ def parse_burstdetect(json_data, per_switch_stats_dict, mo):
 def parse_bufferpktstats(cmd_result, per_switch_stats_dict, mo):
     """Parser for show hardware internal buffer info pkt-stats in json.
     This function assumes that per_intf_dict is already built
-    This information is unavailable via DME. Using NX-API is fine, but it
-    creates a new vsh on the switch resulting in the following message:
-    %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by admin on <ip>@nginx.18400
-    This message floods the system logs and misleads the user into thinking that
-    something was changed on the switch even though this is just a show command
-    Therefore, use password-less ssh to get the output of a command from the
-    switch, which works as fast as NX-API and the returned data is slightly
-    easier to parse because NX-API headers are not added
-    The user running this file must add keys to the switch
-    for password-less ssh, must have necessary permissions to run the
-    commands on the local host, write access to the log directors, and
-    must be able to run any daemon, such as telegraf, that invokes this file
+    This information is unavailable via DME.
     """
 
     json_data = json.loads(cmd_result)
@@ -1145,7 +1146,6 @@ def parse_bufferpktstats(cmd_result, per_switch_stats_dict, mo):
     if "ROW_module" not in json_data['TABLE_module']:
         logger.error('ROW_module not found in %s\n%s', mo, json_data)
         return
-    #row_module = parse_nxapi_common(json_data, mo)
     row_module = json_data['TABLE_module']['ROW_module']
     if row_module is None:
         return
@@ -1418,7 +1418,20 @@ def dme_connect(switch_ip, auth_cookie, endpoint, payload, verify_ssl, timeout):
 def nxapi_connect(switch_ip, switchuser, switchpassword, cmd, verify_ssl, \
                   timeout):
     """ Connect to a Cisco N9K switch and get the response of show command
-    using NXAPI"""
+    using NXAPI (initial implementation). Later, the implementation was
+    changed to use SSH. Using NX-API is fine, but it
+    creates a new vsh on the switch resulting in the following message:
+    %VSHD-5-VSHD_SYSLOG_CONFIG_I: Configured from vty by admin on <ip>@nginx.18400
+    This message floods the system logs and misleads the user into thinking that
+    something was changed on the switch even though this is just a show command
+    Therefore, use password-less ssh to get the output of a command from the
+    switch, which works as fast as NX-API and the returned data is slightly
+    easier to parse because NX-API headers are not added
+    The user running this file must add keys to the switch
+    for password-less ssh, must have necessary permissions to run the
+    commands on the local host, write access to the log directors, and
+    must be able to run any daemon, such as telegraf, that invokes this file
+    """
 
     cmd_list = ['ssh', '-l', switchuser, switch_ip, cmd]
     result = run_cmd(cmd_list)
@@ -1571,7 +1584,7 @@ def get_switch_stats():
         n9k_mo_dict["show queuing burst-detect detail"] = parse_burstdetect
         nxapi_cmd = True
     if user_args['pfcwd']:
-        n9k_mo_dict["show queuing pfc-queue detail"] = parse_pfcqueuedetail
+        n9k_mo_dict["show queuing pfc-queue detail | json"] = parse_pfcqueuedetail
         nxapi_cmd = True
     if user_args['bufferstats']:
         n9k_mo_dict['show hardware internal buffer info pkt-stats | json'] = \

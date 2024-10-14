@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "0.38"
-__updated__ = "13-Oct-2024-10-PM-PDT"
+__version__ = "0.39"
+__updated__ = "13-Oct-2024-11-PM-PDT"
 
 import sys
 import os
@@ -149,6 +149,8 @@ def parse_cmdline_arguments():
             clear counters buffers using SSH/Expect. Caution: This option \
             clears the buffer counters just after reading them so that peak \
             values can be captured the next time')
+    parser.add_argument("--utcoh", type=str, help="UTC offset hours of the switch timezone. Example, +5, -7, etc. Not needed NX-OS 10.5(1) onwards")
+    parser.add_argument("--utcom", type=str, help="UTC offset minutes of the switch timezone. Example, 30. Not needed NX-OS 10.5(1) onwards")
     parser.add_argument('-V', dest='verify_only', \
             action='store_true', default=False, help='verify \
             connection and stats pull but do not print the stats')
@@ -173,6 +175,8 @@ def parse_cmdline_arguments():
     user_args['more_verbose'] = args.more_verbose
     user_args['most_verbose'] = args.most_verbose
     user_args['raw_dump'] = args.raw_dump
+    user_args['utcoh'] = args.utcoh
+    user_args['utcom'] = args.utcom
 
     global INPUT_FILE_PREFIX
     INPUT_FILE_PREFIX = \
@@ -331,6 +335,8 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
     wd_str = ''
     burst_str = ''
     intf_dict = per_switch_stats_dict['intf']
+    utclog = True
+
     for intf, per_intf_dict in intf_dict.items():
         intf_tags = ''
         intf_fields = ''
@@ -353,7 +359,27 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
                         utc = datetime.fromisoformat(str(val))
                     else:
                         if sys_ver < '10.5(1)':
-                            utc = datetime.fromisoformat(str(val)) + timedelta(hours=7)
+                            if user_args['utcoh'] is None:
+                                utc = datetime.fromisoformat(str(val))
+                                if utclog:
+                                    # Print log only once
+                                    logger.warning('Required utcoh for Switch' \
+                                    ' running NX-OS version %s', sys_ver)
+                                    utclog = False
+                            else:
+                                utcoh = int(user_args['utcoh'])
+                                if user_args['utcom'] is not None:
+                                    utcom = int(user_args['utcom'])
+                                else:
+                                    utcom = 0
+                                utc = datetime.fromisoformat(str(val)) + \
+                                        timedelta(hours=utcoh, minutes=utcom)
+                                if utclog:
+                                    # Print log only once
+                                    logger.info('Writing to InfluxDB ' \
+                                    ' after adjusting UTC offset of %d %d', \
+                                    utcoh, utcom)
+                                    utclog = False
                         else:
                             utc = datetime.fromisoformat(str(val))
                     # "2024-05-18T18:04:19.900+00:00"

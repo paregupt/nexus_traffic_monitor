@@ -57,3 +57,20 @@ Burst detection
 Pause frames compared againts traffic in the reverse directions - Used for lossless Ethernet while transporting RoCEv2 traffic
 <img width="1714" alt="image" src="https://github.com/user-attachments/assets/2623f91c-bb66-47a2-9eef-b9208d9fc1f4">
 
+## Architecture
+The NTM collector (nexus_traffic_monitor_*.py) pulls stats from Cisco Nexus 9000 switches using NX-API (HTTP) and SSH. The stats are normalized and correlated before writing to InfluxDB. Finally, Grafana provides the visualization and use-cases.
+
+- **Data source**: [Cisco Nexus 9000 Switches)]([https://developer.cisco.com/docs/mds-9000-nx-api-reference/](https://github.com/paregupt/nexus_traffic_monitor/blob/main/telegraf/nexus_traffic_monitor_high_frequency.py)), read-only account is enough
+- **Data storage**: [InfluxDB](https://github.com/influxdata/influxdb), a time-series database
+- **Visualization**: [Grafana](https://github.com/grafana/grafana)
+
+## Installation
+- Tested OS: Ubuntu 22.04. Should work on other OS also.
+- Python version: Version 3 only.
+- Tested Nexus Switches: Nexus 9332D-GX2B and 9364D-GX2A running 10.(4).x and 10.(5).x.
+
+### DIY Installation
+1. Install Telegraf
+1. Install InfluxDB
+1. Install Grafana
+1. Download this repo in zip format or via git clone.

@@ -160,13 +160,22 @@ Edit /etc/telegraf/telegraf.conf with the following:
    data_format = "influx"
 
  [[outputs.influxdb]]
+```
+
+The seven lines following and including [[inputs.exec]] needs to be repeated as many times as the number of monitored switches with different input files.
+The following options require password-less SSH from the Ubuntu machine running NTN collector to the switch: -burst, -pfcwd, and -bufferstats.
+
+Setup password-less SSH from Ubuntu machine to Nexus switch by configuring following on NX-OS
+
+```
+username <user> sshkey <public_key_from_Ubuntu returned by cat ~/.ssh/id_rsa.pub>
+```
 
 
-
-
-
-### DIY Installation
-1. Install Telegraf
-1. Install InfluxDB
-1. Install Grafana
-1. Download this repo in zip format or via git clone.
+# Notes
+1. This NTM (Nexus Traffic Monitor) project is in continuation of the UTM ([UCS Traffic Monitoring](https://github.com/paregupt/ucs_traffic_monitor)) and MTM ([MDS Traffic Monitor]https://github.com/paregupt/mds_traffic_monitor) projects. Collectively, these projects can work together to provide end-to-end visibility acorss all Cisco data center products.
+2. The design of NTM is similar to MTM, which was similar to UTM, with minor changes. The installation steps for UTM are described at https://www.since2k7.com/blog/2020/02/29/cisco-ucs-monitoring-using-grafana-influxdb-telegraf-utm-installation/ in detail. I also created a CentOS-based OVA for UTM, but for NTM for now, DIY installation is the only option.
+3. I have used this project for many months to monitor Cisco Nexus Nexus 9332D-GX2B,  9364D-GX2A, and other fixed switches running 10.4.x and 10.5.x.
+4. I developed NTM primarily to monitor RoCEv2 traffic for inter-GPU communication, but it can be used in any typical data center network.
+5. Be aware that this project is not supported by Cisco or by me. If it crashes your switches, the responsibility lies with you. This applies to all open-source and free software.
+6. I am open to feedback about enhancements or bugs. Please feel free to raise a new issue.

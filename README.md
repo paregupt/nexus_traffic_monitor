@@ -190,6 +190,7 @@ Configure the following in telegraf.conf
 
 This configuration creates a new measurement name, oc_int_counters, in InfluxDB. This measurement name is used by one (only one) panel in the Grafana interface dashboard.
 
+[See here for more details on GNMI](https://github.com/dsx1123/telemetry_collector/blob/master/etc/telegraf/telegraf.conf.example).
 
 ## InfluxDB
 This project uses InfluxDB 1.8.10 or the latest 1.x. No Influx 2.0. No Influx 3.0 yet.

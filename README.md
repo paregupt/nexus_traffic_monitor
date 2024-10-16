@@ -157,7 +157,7 @@ Setup password-less SSH from Ubuntu machine to Nexus switch by configuring follo
 username <user> sshkey <public_key_from_Ubuntu returned by cat ~/.ssh/id_rsa.pub>
 ```
 
-## InfluxbDB
+## InfluxDB
 This project uses InfluxDB 1.8.10 or the latest 1.x. No Influx 2.0. No Influx 3.0 yet.
 ```
 wget https://download.influxdata.com/influxdb/releases/influxdb_1.8.10_amd64.deb

@@ -43,7 +43,7 @@ Switch buffer peak usage
 <img width="1716" alt="image" src="https://github.com/user-attachments/assets/c1860315-21a6-422e-b1d0-602f4d454998">
 
 Detailed interface absolute and % utilization at 20-second and (optional) 1-second granularity
-<img width="1709" alt="image" src="https://github.com/user-attachments/assets/abea9fc9-a5c5-4a0a-8da6-14b930c5ac19">
+<img width="1711" alt="image" src="https://github.com/user-attachments/assets/c00134d7-b8f8-4ff0-8373-18ac5d52efb1">
 
 Detailed packet-size distribution, drops, and errors
 <img width="1707" alt="image" src="https://github.com/user-attachments/assets/6735fe69-2cd7-4d17-9f28-2186e3fb43ab">

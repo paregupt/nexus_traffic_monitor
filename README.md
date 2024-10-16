@@ -1,4 +1,4 @@
-# nexus_traffic_monitor (NTM)
+# Nexus Traffic Monitoring (NTM)
 Monitor Cisco Nexus 9000 Switches
 
 # Use Cases
@@ -71,20 +71,6 @@ The NTM collector (nexus_traffic_monitor_*.py) pulls stats from Cisco Nexus 9000
 
 Start with a Ubuntu machine with 8 GB memory, 4 or 8 CPUs, 100 GB disk. Add more if planning to monitor many switches or you can add the resources later after starting fresh. My Ubuntu VM has 32 GB memory (usage remains under 16 GB), 16 CPUs, 1 TB disk monitoring 20 switches with 1800 interfaces. Monitoring and RnD for six months increased disk usage by 400 GB. I recommend SSD for faster write and read performance, especially for 1-second granular data and faster loading of the Grafana panels over longer duration.
 
-## InfluxbDB
-This project uses InfluxDB 1.8.10 or the latest 1.x. No Influx 2.0. No Influx 3.0 yet.
-```
-wget https://download.influxdata.com/influxdb/releases/influxdb_1.8.10_amd64.deb
-sudo dpkg -i influxdb_1.8.10_amd64.deb
-```
-## Grafana
-Used Grafana versions: 10.x and 11.2
-
-```
-sudo apt-get install -y adduser libfontconfig1 musl
-wget https://dl.grafana.com/oss/release/grafana_11.2.2_amd64.deb
-sudo dpkg -i grafana_11.2.2_amd64.deb
-```
 ## Telegraf
 Used version: 1.29.5. But any other telegraf version should work.
 
@@ -170,6 +156,23 @@ Setup password-less SSH from Ubuntu machine to Nexus switch by configuring follo
 ```
 username <user> sshkey <public_key_from_Ubuntu returned by cat ~/.ssh/id_rsa.pub>
 ```
+
+## InfluxbDB
+This project uses InfluxDB 1.8.10 or the latest 1.x. No Influx 2.0. No Influx 3.0 yet.
+```
+wget https://download.influxdata.com/influxdb/releases/influxdb_1.8.10_amd64.deb
+sudo dpkg -i influxdb_1.8.10_amd64.deb
+```
+## Grafana
+Used Grafana versions: 10.x and 11.2
+
+```
+sudo apt-get install -y adduser libfontconfig1 musl
+wget https://dl.grafana.com/oss/release/grafana_11.2.2_amd64.deb
+sudo dpkg -i grafana_11.2.2_amd64.deb
+```
+Add new datasource of InfluxDB if this is the first time. [See here how-to](https://www.since2k7.com/blog/2020/02/29/cisco-ucs-monitoring-using-grafana-influxdb-telegraf-utm-installation/#Verify_Grafana_and_InfluxDB_connection) or refer to Grafana docs.
+Import [dashboards](https://github.com/paregupt/nexus_traffic_monitor/tree/main/grafana/dashboard) in Grafana.
 
 
 # Notes

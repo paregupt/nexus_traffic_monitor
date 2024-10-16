@@ -69,6 +69,102 @@ The NTM collector (nexus_traffic_monitor_*.py) pulls stats from Cisco Nexus 9000
 - Python version: Version 3 only.
 - Tested Nexus Switches: Nexus 9332D-GX2B and 9364D-GX2A running 10.(4).x and 10.(5).x.
 
+Start with a Ubuntu machine with 8 GB memory, 4 or 8 CPUs, 100 GB disk. Add more if planning to monitor many switches or you can add the resources later after starting fresh. My Ubuntu VM has 32 GB memory (usage remains under 16 GB), 16 CPUs, 1 TB disk monitoring 20 switches with 1800 interfaces. Monitoring and RnD for six months increased disk usage by 400 GB. I recommend SSD for faster write and read performance, especially for 1-second granular data and faster loading of the Grafana panels over longer duration.
+
+## InfluxbDB
+This project uses InfluxDB 1.8.10 or the latest 1.x. No Influx 2.0. No Influx 3.0 yet.
+```
+wget https://download.influxdata.com/influxdb/releases/influxdb_1.8.10_amd64.deb
+sudo dpkg -i influxdb_1.8.10_amd64.deb
+```
+## Grafana
+Used Grafana versions: 10.x and 11.2
+
+```
+sudo apt-get install -y adduser libfontconfig1 musl
+wget https://dl.grafana.com/oss/release/grafana_11.2.2_amd64.deb
+sudo dpkg -i grafana_11.2.2_amd64.deb
+```
+## Telegraf
+Used version: 1.29.5. But any other telegraf version should work.
+
+### Install Telegraf
+```
+wget https://dl.influxdata.com/telegraf/releases/telegraf_1.29.5-1_amd64.deb 
+sudo dpkg -i telegraf_1.29.5-1_amd64.deb
+```
+
+### Setup Telegraf
+Telegraf by default runs as a service by the telegraf user. But I prefer running telegraf under a different user with access to sudo commands. So edit /lib/systemd/system/telegraf.service and change User=telegraf to something else, for example User=paresh.
+
+To allow running sudo command by the user, paresh, without asking for password, I add a new file, name 91-paresh at /etc/sudoers.d/ with the following line:
+```
+ciscouser ALL=(ALL) NOPASSWD:ALL
+```
+Change this content to allow only specific sudo commands.
+
+Change ownership of /var/log/telegraf to ciscouser to allow this user to write logs
+```
+sudo chown -R paresh:sudo /var/log/telegraf
+```
+
+Restart telegraf service
+```
+sudo systemctl daemon-reload
+sudo systemctl start telegraf
+```
+### Configure Telegraf for NTM collection
+This is the high-level design. The exec input plugin in Telegraf runs the NTM collector (nexus_traffic_monitor_high_frequency.py) every 20-seconds or similar interval. The NTM collector reads the switch credentials from an input file, pulls metrics from the switchec, cleans them, correlates them, and prints the output in InfluxDB Line Protocol format. Telegraf uses this output to write the metrics to InfluxDB. 
+
+Following are the steps.
+Create /usr/local/telegraf directory and copy the NTM collector, nexus_traffic_monitor_high_frequency.py, and switch1.txt file inside it.
+```
+cd
+git clone https://github.com/paregupt/nexus_traffic_monitor.git
+sudo mkdir /usr/local/telegraf
+sudo chown paresh:sudo /usr/local/telegraf
+cp nexus_traffic_monitor/telegraf/* /usr/local/telegraf/
+```
+
+Run NTM collector to learn about its options
+```
+python3 /usr/local/telegraf/nexus_traffic_monitor_high_frequency.py -h
+```
+
+Edit the switch1.txt file to add switch credentials. [Read more details here](https://github.com/paregupt/nexus_traffic_monitor/blob/main/telegraf/switch1.txt).
+You should also change the filename to a more meaningful name, such as the switchname. The NTM collector requires one such input file per switch. For 100 switches, there would be 100 such files. So name them accordingly.
+
+Edit /etc/telegraf/telegraf.conf with the following:
+
+```
+[agent]
+  precision = "1ms"
+  logfile = "/var/log/telegraf/telegraf.log"
+  logfile_rotation_max_size = "10MB"
+  logfile_rotation_max_archives = 5
+
+[[inputs.exec]]
+   interval = "20000ms"
+   commands = [
+       "python3 /usr/local/telegraf/nexus_traffic_monitor_high_frequency.py /usr/local/telegraf/nexus_cisco-sw.txt influxdb-lp -vv",
+   ]
+   timeout = "19000ms"
+   data_format = "influx"
+
+[[inputs.exec]]
+   interval = "20000ms"
+   commands = [
+       "python3 /usr/local/telegraf/nexus_traffic_monitor_high_frequency.py /usr/local/telegraf/nexus_N9364C-H1-1.txt influxdb-lp -vv --utcoh 7",
+   ]
+   timeout = "19000ms"
+   data_format = "influx"
+
+ [[outputs.influxdb]]
+
+
+
+
+
 ### DIY Installation
 1. Install Telegraf
 1. Install InfluxDB

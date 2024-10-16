@@ -149,6 +149,9 @@ Edit /etc/telegraf/telegraf.conf with the following:
 ```
 
 The seven lines following and including [[inputs.exec]] needs to be repeated as many times as the number of monitored switches with different input files.
+
+Nexus switches must be enabled for NX-API. The command is feature nxapi.
+
 The following options require password-less SSH from the Ubuntu machine running NTN collector to the switch: -burst, -pfcwd, and -bufferstats.
 
 Setup password-less SSH from Ubuntu machine to Nexus switch by configuring following on NX-OS
@@ -156,6 +159,37 @@ Setup password-less SSH from Ubuntu machine to Nexus switch by configuring follo
 ```
 username <user> sshkey <public_key_from_Ubuntu returned by cat ~/.ssh/id_rsa.pub>
 ```
+
+### Low-granularity Interface Utilization
+(Optional)
+NTM collector uses NX-API and SSH to collect metrics from the switches. Do not run it lower than 20-seconds. This also means that the interface utilization in bits/second is at least 20-second average.
+For interface utilization at as low as 1-second, use telegraf GNMI plugin.
+
+Configure the following on NX-OS
+```
+feature grpc
+feature openconfig
+grpc port 50050
+```
+
+Configure the following in telegraf.conf
+```
+[[inputs.gnmi]]
+ addresses = ["<switch_ip>:<grpc_port_configured_on_the_switch>"]
+ username = "switchuser"
+ password = "switchuserpassword"
+ enable_tls = true
+ insecure_skip_verify = true
+ [[inputs.gnmi.subscription]]
+  origin = "openconfig"
+  path = "/interfaces/interface/state/counters"
+  name = "oc_int_counters"
+  subscription_mode = "sample"
+  sample_interval = "1s"
+```
+
+This configuration creates a new measurement name, oc_int_counters, in InfluxDB. This measurement name is used by one (only one) panel in the Grafana interface dashboard.
+
 
 ## InfluxDB
 This project uses InfluxDB 1.8.10 or the latest 1.x. No Influx 2.0. No Influx 3.0 yet.

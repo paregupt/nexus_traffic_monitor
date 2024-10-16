@@ -217,3 +217,4 @@ Import [dashboards](https://github.com/paregupt/nexus_traffic_monitor/tree/main/
 4. I developed NTM primarily to monitor RoCEv2 traffic for inter-GPU communication, but it can be used in any typical data center network.
 5. Be aware that this project is not supported by Cisco or by me. If it crashes your switches, the responsibility lies with you. This applies to all open-source and free software.
 6. I am open to feedback about enhancements or bugs. Please feel free to raise a new issue.
+7. Special thanks to Shangxin Du for his help in developing this project.

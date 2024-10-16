@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "0.39"
-__updated__ = "13-Oct-2024-11-PM-PDT"
+__version__ = "1.00"
+__updated__ = "16-Oct-2024-2-PM-PDT"
 
 import sys
 import os

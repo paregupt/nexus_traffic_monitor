@@ -23,7 +23,7 @@ Top utilized switch interfaces for % and absolute (Gbps). These are the hot spot
 <img width="1703" alt="image" src="https://github.com/user-attachments/assets/641f83b9-7619-4422-a286-d6033a9cbfc0">
 
 Errors like CRC, Stomped CRC
-<img width="1710" alt="image" src="https://github.com/user-attachments/assets/3651aaba-baf8-469d-af34-3f09be6246c6">
+<img width="1708" alt="image" src="https://github.com/user-attachments/assets/ca6dd4bd-90b7-4601-9a66-02d24278e051">
 
 Drops and Random Drops from switch interface queues
 <img width="1708" alt="image" src="https://github.com/user-attachments/assets/26b2a54f-77da-4f33-99a6-846fc971a9e2">

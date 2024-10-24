@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "1.00"
-__updated__ = "16-Oct-2024-2-PM-PDT"
+__version__ = "1.01"
+__updated__ = "23-Oct-2024-6-PM-PDT"
 
 import sys
 import os
@@ -429,15 +429,19 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
                           per_switch_stats_dict['location']
 
                 if 'meta' in per_intf_dict.keys():
-                    if 'peer' in per_intf_dict['meta']:
+                    if 'peer' in per_intf_dict['meta'] and \
+                            per_intf_dict['meta']['peer'] != '':
                         q_tags = q_tags + ',peer=' + per_intf_dict['meta']['peer']
-                    if 'peer_intf' in per_intf_dict['meta']:
+                    if 'peer_intf' in per_intf_dict['meta'] and \
+                            per_intf_dict['meta']['peer_intf'] != '':
                         q_tags = q_tags + ',peer_intf=' + \
                                  per_intf_dict['meta']['peer_intf']
-                    if 'peer_name' in per_intf_dict['meta']:
+                    if 'peer_name' in per_intf_dict['meta'] and \
+                            per_intf_dict['meta']['peer_name'] != '':
                         q_tags = q_tags + ',peer_name=' + \
                                  per_intf_dict['meta']['peer_name']
-                    if 'peer_type' in per_intf_dict['meta']:
+                    if 'peer_type' in per_intf_dict['meta'] and \
+                            per_intf_dict['meta']['peer_type'] != '':
                         q_tags = q_tags + ',peer_type=' + \
                                  per_intf_dict['meta']['peer_type']
 

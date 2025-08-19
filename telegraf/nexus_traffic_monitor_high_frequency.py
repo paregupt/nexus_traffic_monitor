@@ -3,8 +3,8 @@
 desired output format"""
 
 __author__ = "Paresh Gupta"
-__version__ = "1.01"
-__updated__ = "23-Oct-2024-6-PM-PDT"
+__version__ = "1.50"
+__updated__ = "18-Aug-2025-6-PM-PDT"
 
 import sys
 import os
@@ -673,6 +673,8 @@ def parse_ethpmPhysIf(imdata_list, per_switch_stats_dict, mo):
                 meta_dict = per_intf_dict['meta']
 
                 meta_dict['oper_state'] = attributes.get('operSt')
+                # Default peer_type is unknown until changed by LLDP
+                meta_dict['peer_type'] = 'unknown'
 
                 if 'data' not in per_intf_dict:
                     per_intf_dict['data'] = {}
@@ -1080,8 +1082,9 @@ def parse_pfcqueuedetail(cmd_result, per_switch_stats_dict, mo):
                     for rq in v['ROW_qosgrp_stats']:
                         if 'eq-qosgrp' in rq:
                             #wd_dict['qosgrp'] = str(rq['eq-qosgrp'])
-                            qosgrp = ''.join(re.findall(r'([0-9]) ', \
-                                    str(rq['eq-qosgrp']), re.IGNORECASE))
+                            #qosgrp = ''.join(re.findall(r'([0-9]) ', \
+                            #        str(rq['eq-qosgrp']), re.IGNORECASE))
+                            qosgrp = ''.join(re.findall(r'([0-9]) ', rq['eq-qosgrp'], re.IGNORECASE))
                             wd_dict[qosgrp] = {}
                         else:
                             logger.error('Not found eq-qosgrp for %s \n%s', \
@@ -1213,6 +1216,9 @@ def parse_bufferpktstats(cmd_result, per_switch_stats_dict, mo):
                 'N' not in str(row_dict['switch_cell_count_no_drop_pg']):
             buffer_dict[row_dict['instance']]['cell_count_no_drop_pg'] = \
                                             row_dict['switch_cell_count_no_drop_pg']
+
+def parse_bufferpktstats_sg2(cmd_result, per_switch_stats_dict, mo):
+    return
 
 def parse_nothing(cmd_result, per_switch_stats_dict, mo):
     """parse nothing"""
@@ -1537,7 +1543,6 @@ def connect_and_pull_stats(switch_ip):
     timeout = int(switch_dict[switch_ip][5])
     idx = 0
     payload = None
-    nxapi_ep = False
 
     for endpoint, parser in n9k_mo_dict.items():
         nxapi_start = time.time()
@@ -1568,19 +1573,11 @@ def connect_and_pull_stats(switch_ip):
                                  nxapi_parse = nxapi_parse)
             response_time_dict[switch_ip].insert(idx, response_time)
             idx = idx + 1
-            # In n9k_mo_dict, all DME MOs are listed first and aaaLogout is the
-            # last. After this, start SSH/NXAPI calls of show commands
-            # order of DME and SSH/NXAPI calls must not be changed or mixed
-            nxapi_ep = True
             continue
 
-        logger.info('Run %s on %s', mo, switch_ip)
+        logger.info('Run %s on %s. idx %d', mo, switch_ip, idx)
 
-        if nxapi_ep:
-            imdata_list = nxapi_connect(switch_ip, switchuser, switchpassword, \
-                                        endpoint, verify_ssl, timeout)
-        else:
-            imdata_list = dme_connect(switch_ip, auth_cookie, endpoint, \
+        imdata_list = dme_connect(switch_ip, auth_cookie, endpoint, \
                                       payload, verify_ssl, timeout)
 
         nxapi_rsp = time.time()
@@ -1590,13 +1587,54 @@ def connect_and_pull_stats(switch_ip):
 
             parser(imdata_list, stats_dict[switch_ip], mo)
 
-            logger.info('Done parsing stats for %s for %s', switch_ip, mo)
-            nxapi_parse = time.time()
-            response_time = dict(nxapi_start = nxapi_start,
-                                 nxapi_rsp = nxapi_rsp,
-                                 nxapi_parse = nxapi_parse)
-            response_time_dict[switch_ip].insert(idx, response_time)
+            logger.info('Done parsing stats for %s for %s. idx %d', switch_ip, mo, idx)
+        nxapi_parse = time.time()
+        response_time = dict(nxapi_start = nxapi_start,
+                             nxapi_rsp = nxapi_rsp,
+                             nxapi_parse = nxapi_parse)
+        response_time_dict[switch_ip].insert(idx, response_time)
         idx = idx + 1
+
+    add_nxapi_cmd(switch_ip, stats_dict[switch_ip])
+    for endpoint, parser in n9k_nxapi_cmd_dict.items():
+        nxapi_start = time.time()
+        nxapi_cmd = endpoint.split('/')[-1].split('.')[0]
+        logger.info('Run %s on %s. idx %d', nxapi_cmd, switch_ip, idx)
+        imdata_list = nxapi_connect(switch_ip, switchuser, switchpassword, \
+                                    endpoint, verify_ssl, timeout)
+        nxapi_rsp = time.time()
+        if imdata_list:
+            logger.info('Received. Now parse stats for %s for %s', switch_ip, nxapi_cmd)
+
+            parser(imdata_list, stats_dict[switch_ip], nxapi_cmd)
+
+            logger.info('Done parsing stats for %s for %s', switch_ip, nxapi_cmd)
+        nxapi_parse = time.time()
+        response_time = dict(nxapi_start = nxapi_start,
+                             nxapi_rsp = nxapi_rsp,
+                             nxapi_parse = nxapi_parse)
+        response_time_dict[switch_ip].insert(idx, response_time)
+        idx = idx + 1
+
+def add_nxapi_cmd(switch_ip, per_switch_stats_dict):
+    """
+    Add NX-OS show commands to be run via NX-API or SSH. These are added later
+    after knowing the switch model
+    """
+    logger.info('HERE: %s', per_switch_stats_dict['model'])
+
+    if user_args['burst']:
+        n9k_nxapi_cmd_dict["show queuing burst-detect detail"] = parse_burstdetect
+    if user_args['pfcwd']:
+        n9k_nxapi_cmd_dict["show queuing pfc-queue detail | json"] = parse_pfcqueuedetail
+    if user_args['bufferstats']:
+        if 'SG2' in per_switch_stats_dict['model']:
+            n9k_nxapi_cmd_dict['show hardware internal buffer info pkt-stats peak'] = \
+                parse_bufferpktstats_sg2
+        else:
+            n9k_nxapi_cmd_dict['show hardware internal buffer info pkt-stats | json'] = \
+                parse_bufferpktstats
+        n9k_nxapi_cmd_dict['clear counters buffers'] = parse_nothing
 
 def get_switch_stats():
     """
@@ -1608,21 +1646,6 @@ def get_switch_stats():
     if len(switch_dict) == 0:
         logger.error('Nothing to connect')
         return
-
-    nxapi_cmd = False
-    if user_args['burst']:
-        n9k_mo_dict["show queuing burst-detect detail"] = parse_burstdetect
-        nxapi_cmd = True
-    if user_args['pfcwd']:
-        n9k_mo_dict["show queuing pfc-queue detail | json"] = parse_pfcqueuedetail
-        nxapi_cmd = True
-    if user_args['bufferstats']:
-        n9k_mo_dict['show hardware internal buffer info pkt-stats | json'] = \
-                    parse_bufferpktstats
-        n9k_mo_dict['clear counters buffers'] = parse_nothing
-        nxapi_cmd = True
-#    if nxapi_cmd:
-#        n9k_mo_dict['show clock'] = parse_nothing
 
     for switch_ip in switch_dict:
         try:
@@ -1636,7 +1659,7 @@ def get_switch_stats():
 
 # Dictionary of N9K managed objects (MO) and their parsing functions
 # First list DME objects in which aaaLogin must be the first and
-# aaaLogout must be the last. Then list NXAPI commands
+# aaaLogout must be the last.
 n9k_mo_dict = {
     "/api/aaaLogin.json": aaa_login,
     "/api/node/class/sysmgrShowVersion.json": parse_sysmgrShowVersion,
@@ -1653,6 +1676,9 @@ n9k_mo_dict = {
     "/api/node/class/lldpAdjEp.json": parse_lldpAdjEp,
     "/api/aaaLogout.json": aaa_logout,
 }
+
+# To be dynamically populated based on input parameters and switch model
+n9k_nxapi_cmd_dict = {}
 
 def main(argv):
     """The beginning of the beginning"""
@@ -1722,7 +1748,10 @@ def main(argv):
             time_output = time_output + '\n' + \
                     '    | Command set:{0: <2}'.format(idx + 1)
 
-            cmd_str = (list(n9k_mo_dict)[idx]).split('/')[-1].split('.')[0]
+            if idx  < len(n9k_mo_dict):
+                cmd_str = (list(n9k_mo_dict)[idx]).split('/')[-1].split('.')[0]
+            else:
+                cmd_str = (list(n9k_nxapi_cmd_dict)[idx - len(n9k_mo_dict)]).split('/')[-1].split('.')[0]
 
             ml_cmd_str = ' : {0: <54}|'.format(' ')
             if len(cmd_str.split(',')) > 1:

@@ -1217,7 +1217,78 @@ def parse_bufferpktstats(cmd_result, per_switch_stats_dict, mo):
             buffer_dict[row_dict['instance']]['cell_count_no_drop_pg'] = \
                                             row_dict['switch_cell_count_no_drop_pg']
 
-def parse_bufferpktstats_sg2(cmd_result, per_switch_stats_dict, mo):
+def parse_bufferpktstats_sg2(cmd_result, per_switch_stats_dict, nxapi_cmd):
+    """
+    Parse show hard internal buffer info pkt-stats peak from Nexus SG2 switches
+    This function assumes that per_intf_dict is already built
+    This information is unavailable via DME.
+    If this information is found, it overwrites q_depth obtained from
+    show queuing interface command (ipqosQueuingStats)
+    """
+    intf_dict = per_switch_stats_dict['intf']
+    first_section = cmd_result.split('Output Peak Queue')[0]
+    for line in first_section.splitlines():
+        if 'MB' in line:
+            per_switch_stats_dict['peak_bytes_no_drop'] = \
+                                    int(line.strip().split('(')[0])
+            per_switch_stats_dict['peak_bytes_drop'] = \
+                                    int(line.strip().split('(')[1].split()[-1])
+    second_section = cmd_result.split('Output Peak Queue')[-1].split('-----')[-1]
+    logger.info('%s\n %s %s', cmd_result, nxapi_cmd, second_section)
+    for line in second_section.splitlines():
+        line_list = line.split()
+        if len(line_list) < 12:
+            continue
+        ltl = int(line_list[0])
+        slice_num = int(line_list[1])
+        q0_peak_bytes = line_list[4]
+        q1_peak_bytes = line_list[5]
+        q2_peak_bytes = line_list[6]
+        q3_peak_bytes = line_list[7]
+        q4_peak_bytes = line_list[8]
+        q5_peak_bytes = line_list[9]
+        q6_peak_bytes = line_list[10]
+        q7_peak_bytes = line_list[11]
+        for intf, per_intf_dict in intf_dict.items():
+            if ltl == per_intf_dict['meta']['ltl']:
+                for q_name, per_q_dict in per_intf_dict['out_queue'].items():
+                    if 'q1' in q_name:
+                        per_q_dict['q_depth'] = q1_peak_bytes
+                    if 'q2' in q_name:
+                        per_q_dict['q_depth'] = q2_peak_bytes
+                    if 'q3' in q_name:
+                        per_q_dict['q_depth'] = q3_peak_bytes
+                    if 'q4' in q_name:
+                        per_q_dict['q_depth'] = q4_peak_bytes
+                    if 'q5' in q_name:
+                        per_q_dict['q_depth'] = q5_peak_bytes
+                    if 'q6' in q_name:
+                        per_q_dict['q_depth'] = q6_peak_bytes
+                    if 'q7' in q_name:
+                        per_q_dict['q_depth'] = q7_peak_bytes
+                    if 'default' in q_name:
+                        per_q_dict['q_depth'] = q0_peak_bytes
+
+def parse_sg2_ltl_interface_map(cmd_result, per_switch_stats_dict, nxapi_cmd):
+    """
+    Parse show system internal ethpm info global | grep STATIC
+    to fill ltl and slice_num in intf_dict to be used later for buffer usage
+    """
+    intf_dict = per_switch_stats_dict['intf']
+    for line in cmd_result.splitlines():
+        for line_item in line.split(','):
+            line_item = line_item.lower()
+            if 'port_name' in line_item and 'ethernet' in line_item:
+                interface = line_item.split('=')[-1].replace('ethernet', 'eth')
+                if interface not in intf_dict:
+                    logger.error('Interface %s not found in intf_dict for %s',\
+                                    interface, nxapi_cmd)
+                per_intf_dict = intf_dict[interface]
+                meta_dict = per_intf_dict['meta']
+            if 'ltl' in line_item:
+                meta_dict['ltl'] = int(line_item.split('=')[-1])
+            if 'slice' in line_item:
+                meta_dict['slice_num'] = int(line_item.split('=')[-1])
     return
 
 def parse_nothing(cmd_result, per_switch_stats_dict, mo):
@@ -1629,12 +1700,14 @@ def add_nxapi_cmd(switch_ip, per_switch_stats_dict):
         n9k_nxapi_cmd_dict["show queuing pfc-queue detail | json"] = parse_pfcqueuedetail
     if user_args['bufferstats']:
         if 'SG2' in per_switch_stats_dict['model']:
+            n9k_nxapi_cmd_dict['show system internal ethpm info global | grep STATIC'] = \
+                parse_sg2_ltl_interface_map
             n9k_nxapi_cmd_dict['show hardware internal buffer info pkt-stats peak'] = \
                 parse_bufferpktstats_sg2
         else:
             n9k_nxapi_cmd_dict['show hardware internal buffer info pkt-stats | json'] = \
                 parse_bufferpktstats
-        n9k_nxapi_cmd_dict['clear counters buffers'] = parse_nothing
+        #n9k_nxapi_cmd_dict['clear counters buffers'] = parse_nothing
 
 def get_switch_stats():
     """

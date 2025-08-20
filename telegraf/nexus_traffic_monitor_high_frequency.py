@@ -1235,39 +1235,37 @@ def parse_bufferpktstats_sg2(cmd_result, per_switch_stats_dict, nxapi_cmd):
                                     int(line.strip().split('(')[1].split()[-1])
     second_section = cmd_result.split('Output Peak Queue')[-1].split('-----')[-1]
     logger.info('%s\n %s %s', cmd_result, nxapi_cmd, second_section)
+    """
+    Line format is this:
+                  IFG   TM
+    LTL    SLICE  ID    PORT    Q0        Q1        Q2        Q3        Q4        Q5        Q6        Q7
+    -----  -----  ----  -----   -----     -----     -----     -----     -----     -----     -----     -----
+    508    8      0     16      0         0         0         0         0         0         0         1536
+    """
     for line in second_section.splitlines():
         line_list = line.split()
         if len(line_list) < 12:
             continue
         ltl = int(line_list[0])
-        slice_num = int(line_list[1])
-        q0_peak_bytes = line_list[4]
-        q1_peak_bytes = line_list[5]
-        q2_peak_bytes = line_list[6]
-        q3_peak_bytes = line_list[7]
-        q4_peak_bytes = line_list[8]
-        q5_peak_bytes = line_list[9]
-        q6_peak_bytes = line_list[10]
-        q7_peak_bytes = line_list[11]
         for intf, per_intf_dict in intf_dict.items():
             if ltl == per_intf_dict['meta']['ltl']:
                 for q_name, per_q_dict in per_intf_dict['out_queue'].items():
                     if 'q1' in q_name:
-                        per_q_dict['q_depth'] = q1_peak_bytes
+                        per_q_dict['q_depth'] = line_list[5]
                     if 'q2' in q_name:
-                        per_q_dict['q_depth'] = q2_peak_bytes
+                        per_q_dict['q_depth'] = line_list[6]
                     if 'q3' in q_name:
-                        per_q_dict['q_depth'] = q3_peak_bytes
+                        per_q_dict['q_depth'] = line_list[7]
                     if 'q4' in q_name:
-                        per_q_dict['q_depth'] = q4_peak_bytes
+                        per_q_dict['q_depth'] = line_list[8]
                     if 'q5' in q_name:
-                        per_q_dict['q_depth'] = q5_peak_bytes
+                        per_q_dict['q_depth'] = line_list[9]
                     if 'q6' in q_name:
-                        per_q_dict['q_depth'] = q6_peak_bytes
+                        per_q_dict['q_depth'] = line_list[10]
                     if 'q7' in q_name:
-                        per_q_dict['q_depth'] = q7_peak_bytes
+                        per_q_dict['q_depth'] = line_list[11]
                     if 'default' in q_name:
-                        per_q_dict['q_depth'] = q0_peak_bytes
+                        per_q_dict['q_depth'] = line_list[4]
 
 def parse_sg2_ltl_interface_map(cmd_result, per_switch_stats_dict, nxapi_cmd):
     """

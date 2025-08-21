@@ -281,6 +281,14 @@ def print_output_in_influxdb_lp(switch_ip, per_switch_stats_dict):
         switch_fields = switch_fields + ',mem_used=' + \
                         str(per_switch_stats_dict['mem_used'])
 
+    if 'peak_bytes_no_drop' in per_switch_stats_dict:
+        switch_fields = switch_fields + ',peak_bytes_no_drop=' + \
+                        str(per_switch_stats_dict['peak_bytes_no_drop'])
+
+    if 'peak_bytes_drop' in per_switch_stats_dict:
+        switch_fields = switch_fields + ',peak_bytes_drop=' + \
+                        str(per_switch_stats_dict['peak_bytes_drop'])
+
     if 'sys_ver' in per_switch_stats_dict:
         switch_fields = switch_fields + ',sys_ver="' + \
                         per_switch_stats_dict['sys_ver'] + '"'
@@ -1234,7 +1242,7 @@ def parse_bufferpktstats_sg2(cmd_result, per_switch_stats_dict, nxapi_cmd):
             per_switch_stats_dict['peak_bytes_drop'] = \
                                     int(line.strip().split('(')[1].split()[-1])
     second_section = cmd_result.split('Output Peak Queue')[-1].split('-----')[-1]
-    logger.info('%s\n %s %s', cmd_result, nxapi_cmd, second_section)
+    #logger.info('%s\n %s', cmd_result, nxapi_cmd)
     """
     Line format is this:
                   IFG   TM
@@ -1248,7 +1256,8 @@ def parse_bufferpktstats_sg2(cmd_result, per_switch_stats_dict, nxapi_cmd):
             continue
         ltl = int(line_list[0])
         for intf, per_intf_dict in intf_dict.items():
-            if ltl == per_intf_dict['meta']['ltl']:
+            if 'ltl' in per_intf_dict['meta'] and \
+                        ltl == per_intf_dict['meta']['ltl']:
                 for q_name, per_q_dict in per_intf_dict['out_queue'].items():
                     if 'q1' in q_name:
                         per_q_dict['q_depth'] = line_list[5]
@@ -1273,21 +1282,31 @@ def parse_sg2_ltl_interface_map(cmd_result, per_switch_stats_dict, nxapi_cmd):
     to fill ltl and slice_num in intf_dict to be used later for buffer usage
     """
     intf_dict = per_switch_stats_dict['intf']
+    logger.info('%s\n %s', nxapi_cmd, cmd_result)
+    """Sample line to be parsed
+      IF_STATIC_INFO: port_name=Ethernet1/64/2,if_index:0x38277000,ltl=509,slot=0, nxos_port=505,dmod=1,dpid=285,unit=0,queue=65535,xbar_unitbmp=0x0,ns_pid=255,slice_num=8,port_on_slice=0,src_id=0
+    """
     for line in cmd_result.splitlines():
+        line = line.lower()
+        if 'port_name' not in line:
+            continue
+        if 'ethernet' not in line:
+            continue
+        meta_dict = {}
         for line_item in line.split(','):
-            line_item = line_item.lower()
-            if 'port_name' in line_item and 'ethernet' in line_item:
+            logger.info('line_item:%s', line_item)
+            if 'ethernet' in line_item:
                 interface = line_item.split('=')[-1].replace('ethernet', 'eth')
                 if interface not in intf_dict:
                     logger.error('Interface %s not found in intf_dict for %s',\
-                                    interface, nxapi_cmd)
+                                interface, nxapi_cmd)
+                    continue
                 per_intf_dict = intf_dict[interface]
                 meta_dict = per_intf_dict['meta']
             if 'ltl' in line_item:
                 meta_dict['ltl'] = int(line_item.split('=')[-1])
             if 'slice' in line_item:
                 meta_dict['slice_num'] = int(line_item.split('=')[-1])
-    return
 
 def parse_nothing(cmd_result, per_switch_stats_dict, mo):
     """parse nothing"""
@@ -1690,8 +1709,6 @@ def add_nxapi_cmd(switch_ip, per_switch_stats_dict):
     Add NX-OS show commands to be run via NX-API or SSH. These are added later
     after knowing the switch model
     """
-    logger.info('HERE: %s', per_switch_stats_dict['model'])
-
     if user_args['burst']:
         n9k_nxapi_cmd_dict["show queuing burst-detect detail"] = parse_burstdetect
     if user_args['pfcwd']:
@@ -1705,7 +1722,7 @@ def add_nxapi_cmd(switch_ip, per_switch_stats_dict):
         else:
             n9k_nxapi_cmd_dict['show hardware internal buffer info pkt-stats | json'] = \
                 parse_bufferpktstats
-        #n9k_nxapi_cmd_dict['clear counters buffers'] = parse_nothing
+        n9k_nxapi_cmd_dict['clear counters buffers'] = parse_nothing
 
 def get_switch_stats():
     """

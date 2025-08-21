@@ -1282,7 +1282,6 @@ def parse_sg2_ltl_interface_map(cmd_result, per_switch_stats_dict, nxapi_cmd):
     to fill ltl and slice_num in intf_dict to be used later for buffer usage
     """
     intf_dict = per_switch_stats_dict['intf']
-    logger.info('%s\n %s', nxapi_cmd, cmd_result)
     """Sample line to be parsed
       IF_STATIC_INFO: port_name=Ethernet1/64/2,if_index:0x38277000,ltl=509,slot=0, nxos_port=505,dmod=1,dpid=285,unit=0,queue=65535,xbar_unitbmp=0x0,ns_pid=255,slice_num=8,port_on_slice=0,src_id=0
     """
@@ -1294,7 +1293,6 @@ def parse_sg2_ltl_interface_map(cmd_result, per_switch_stats_dict, nxapi_cmd):
             continue
         meta_dict = {}
         for line_item in line.split(','):
-            logger.info('line_item:%s', line_item)
             if 'ethernet' in line_item:
                 interface = line_item.split('=')[-1].replace('ethernet', 'eth')
                 if interface not in intf_dict:

@@ -67,7 +67,7 @@ The NTM collector (nexus_traffic_monitor_*.py) pulls stats from Cisco Nexus 9000
 ## Installation
 - Tested OS: Ubuntu 22.04. Should work on other OS also.
 - Python version: Version 3 only.
-- Tested Nexus Switches: Nexus 9332D-GX2B and 9364D-GX2A running 10.(4).x and 10.(5).x.
+- Tested Nexus Switches: Nexus 9332D-GX2B and 9364D-GX2A running 10.(4).x and 10.(5).x have worked awesomely well for 18+ months. Added support for Nexus 9364E-SG2 switches as well. Other models that have been working well for months: Nexus 93108TC-FX3, 9364C-H1, and 93600CD-GX.
 
 Start with a Ubuntu machine with 8 GB memory, 4 or 8 CPUs, 100 GB disk. Add more if planning to monitor many switches or you can add the resources later after starting fresh. My Ubuntu VM has 32 GB memory (usage remains under 16 GB), 16 CPUs, 1 TB disk monitoring 20 switches with 1800 interfaces. Monitoring and RnD for six months increased disk usage by 400 GB. I recommend SSD for faster write and read performance, especially for 1-second granular data and faster loading of the Grafana panels over longer duration.
 
